@@ -16,6 +16,7 @@
 #include "AP_Mount_Xacti.h"
 #include "AP_Mount_Viewpro.h"
 #include "AP_Mount_Topotek.h"
+#include "AP_Mount_Gimbal_Camera.h"
 #include <stdio.h>
 #include <AP_Math/location.h>
 #include <SRV_Channel/SRV_Channel.h>
@@ -166,6 +167,14 @@ void AP_Mount::init()
             serial_instance++;
             break;
 #endif // HAL_MOUNT_TOPOTEK_ENABLED
+
+#if HAL_MOUNT_Gimbal_Camera_ENABLED
+        // check for Gimbal_Camera
+        case Type::Gimbal_Camera:
+            _backends[instance] = new AP_Mount_Gimbal_Camera(*this, _params[instance], instance);
+            _num_instances++;
+            break;
+#endif  // HAL_MOUNT_Gimbal_Camera_ENABLED
         }
 
         // init new instance
