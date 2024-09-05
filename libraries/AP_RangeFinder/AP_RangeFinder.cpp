@@ -64,6 +64,7 @@
 #include "AP_RangeFinder_JRE_Serial.h"
 #include "AP_RangeFinder_Ainstein_LR_D1.h"
 #include "AP_RangeFinder_RDS02UF.h"
+#include "AP_RangeFinder_Test.h"
 
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_Logger/AP_Logger.h>
@@ -599,6 +600,12 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
         serial_create_fn = AP_RangeFinder_RDS02UF::create;
         break;
 #endif
+
+#if AP_RANGEFINDER_Test_ENABLED
+    case Type::Test:
+        _add_backend(NEW_NOTHROW AP_RangeFinder_Test(state[instance], params[instance]), instance);
+        break;
+#endif
     case Type::NONE:
         break;
     }
@@ -884,6 +891,18 @@ bool RangeFinder::prearm_healthy(char *failure_msg, const uint8_t failure_msg_le
 
 #if AP_RANGEFINDER_NRA24_CAN_ENABLED
         case Type::NRA24_CAN: {
+            if (drivers[i]->status() == Status::NoData) {
+                // This sensor stops sending data if there is no relative motion. This will mostly happen during takeoff, before arming
+                // To avoid pre-arm failure, return true even though there is no data.
+                // This sensor also sends a "heartbeat" so we can differentiate between  "NoData" and "NotConnected"
+                return true;
+            }
+            break;
+        }
+#endif
+
+#if AP_RANGEFINDER_Test_ENABLED
+        case Type::Test: {
             if (drivers[i]->status() == Status::NoData) {
                 // This sensor stops sending data if there is no relative motion. This will mostly happen during takeoff, before arming
                 // To avoid pre-arm failure, return true even though there is no data.

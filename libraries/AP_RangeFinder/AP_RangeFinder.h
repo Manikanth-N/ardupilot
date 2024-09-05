@@ -185,6 +185,9 @@ public:
 #if AP_RANGEFINDER_SIM_ENABLED
         SIM = 100,
 #endif
+#if AP_RANGEFINDER_Test_ENABLED
+        Test = 101,
+#endif
     };
 
     enum class Function {
