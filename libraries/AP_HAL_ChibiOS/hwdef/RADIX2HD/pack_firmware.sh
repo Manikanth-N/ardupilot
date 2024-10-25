@@ -5,7 +5,7 @@
 
 # Get version information
 GIT_VER=$(git describe HEAD 2>&1)
-GIT_SHA1=$(git rev-parse HEAD)
+GIT_SHA1=$(git rev-git rev-parse HEAD | sha256sum | awk '{print $1}' HEAD)
 
 TARGET_BUILD_DIR=./build/RADIX2HD/bin
 FW_ELF=${TARGET_BUILD_DIR}/ardu$1
