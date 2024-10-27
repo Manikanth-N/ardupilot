@@ -301,9 +301,9 @@ extern AP_Vehicle& vehicle;
  */
 void AP_Vehicle::setup()
 {
-
+// Hard coding the Firmware Version
 #define Hard_code_verison "5a957b25606084275303bd4dd89303afab9a15eb22faccf65433e240b0084f4a"
-
+// Object to get verion from library
 const AP_FWVersion &version = AP::fwversion();
 
     // load the default values of variables listed in var_info[]
@@ -439,7 +439,7 @@ const AP_FWVersion &version = AP::fwversion();
             GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"POST Failed: Checksum Mismatch. Vehicle in boot mode.");
         }
     }
-    
+
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
 
