@@ -302,6 +302,7 @@ public:
 
 protected:
 
+    void post_verification_and_file_access(const char *filename); // for Power-On-Self-Test Capability
     virtual void init_ardupilot() = 0;
     virtual void load_parameters() = 0;
     void load_parameters(AP_Int16 &format_version, const uint16_t expected_format_version);

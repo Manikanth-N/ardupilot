@@ -27,6 +27,7 @@
 extern AP_IOMCU iomcu;
 #endif
 #include <AP_Scripting/AP_Scripting.h>
+#include <sys/stat.h> 
 
 #define SCHED_TASK(func, rate_hz, max_time_micros, prio) SCHED_TASK_CLASS(AP_Vehicle, &vehicle, func, rate_hz, max_time_micros, prio)
 
@@ -417,6 +418,9 @@ void AP_Vehicle::setup()
     AP::gripper().init();
 #endif
 
+    // POST verificaiton is done here
+    post_verification_and_file_access("APM/version.txt");
+    
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
 
@@ -525,7 +529,7 @@ void AP_Vehicle::setup()
     // initialisation
     AP_Param::invalidate_count();
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ArduPilot Ready");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Checksum Verified : ArduPilot is Ready");
 
 #if AP_DDS_ENABLED
     if (!init_dds_client()) {
@@ -1126,6 +1130,56 @@ bool AP_Vehicle::init_dds_client()
     return dds_client->start();
 }
 #endif // AP_DDS_ENABLED
+
+void AP_Vehicle::post_verification_and_file_access(const char *filename) {
+    struct stat st;
+    const AP_FWVersion &version = AP::fwversion();  // Initialize version properly
+
+    // Check if the file exists
+    if (AP::FS().stat(filename, &st) != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "No secret file found");
+        reboot(true);
+    }
+
+    // Open the file in read mode
+    int fd = AP::FS().open(filename, O_RDONLY);
+    if (fd < 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "File access failed: Unable to open file.");
+        reboot(true);
+    }
+
+    // Buffer to hold file data and accumulate SD card version input
+    const size_t buffer_size = 128;
+    char buffer[buffer_size];
+    int32_t read_size;
+    char sd_card_version_input[1024] = {0};  // Using a C-style character array, initialized to empty
+
+    // Read the file content into the buffer
+    while ((read_size = AP::FS().read(fd, buffer, buffer_size - 1)) > 0) {
+        buffer[read_size] = '\0';  // Null-terminate the buffer
+        // Concatenate buffer to sd_card_version_input
+        strncat(sd_card_version_input, buffer, sizeof(sd_card_version_input) - strlen(sd_card_version_input) - 1);
+    }
+
+    // Close the file after reading
+    AP::FS().close(fd);
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Secret file accessed successfully.");
+
+    // Perform POST checksum verification with the retrieved sd_card_version_input
+    if (strlen(sd_card_version_input) == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: SD card version input not found in file.");
+        reboot(true);
+    }
+
+    // Compare the checksum
+    if (strcmp(version.fw_hash_str, sd_card_version_input) == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Checksum Matches. Vehicle Ready");
+    } else {
+        // POST failed due to checksum mismatch
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Checksum Mismatch. Vehicle in boot mode.");
+        reboot(true);
+    }
+}
 
 // Check if this mode can be entered from the GCS
 #if APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane) || APM_BUILD_TYPE(APM_BUILD_Rover)
