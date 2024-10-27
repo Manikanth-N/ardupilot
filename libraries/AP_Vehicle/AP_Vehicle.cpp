@@ -301,6 +301,11 @@ extern AP_Vehicle& vehicle;
  */
 void AP_Vehicle::setup()
 {
+
+#define Hard_code_verison "5a957b25606084275303bd4dd89303afab9a15eb22faccf65433e240b0084f4a"
+
+const AP_FWVersion &version = AP::fwversion();
+
     // load the default values of variables listed in var_info[]
     AP_Param::setup_sketch_defaults();
 
@@ -417,6 +422,24 @@ void AP_Vehicle::setup()
     AP::gripper().init();
 #endif
 
+    // Run POST checksum verification at startup
+    if (strcmp(version.fw_hash_str,Hard_code_verison) == 0) 
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"POST Verified: Checksum Matches. Vehicle Ready");
+    }
+    else
+    {
+        // Set initialized to false, signaling a failed initialization
+        // ap.initialised = false;
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"POST Failed: Checksum Mismatch. Vehicle in boot mode.");
+
+        while (true) 
+        {
+            // Optional: Flash an LED or use a buzzer to indicate failure
+            GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"POST Failed: Checksum Mismatch. Vehicle in boot mode.");
+        }
+    }
+    
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
 
@@ -525,7 +548,7 @@ void AP_Vehicle::setup()
     // initialisation
     AP_Param::invalidate_count();
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ArduPilot Ready");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ArduPilot Ready");
 
 #if AP_DDS_ENABLED
     if (!init_dds_client()) {
