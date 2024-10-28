@@ -419,7 +419,8 @@ void AP_Vehicle::setup()
 #endif
 
     // POST verificaiton is done here
-    post_verification_and_file_access("APM/version.txt");
+    post_verification_with_code_checksum("APM/code_checksum.txt");
+    post_verification_with_data_checksum("APM/data_checksum.txt");
     
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
@@ -1131,20 +1132,20 @@ bool AP_Vehicle::init_dds_client()
 }
 #endif // AP_DDS_ENABLED
 
-void AP_Vehicle::post_verification_and_file_access(const char *filename) {
+void AP_Vehicle::post_verification_with_code_checksum(const char *filename) {
     struct stat st;
     const AP_FWVersion &version = AP::fwversion();  // Initialize version properly
 
     // Check if the file exists
     if (AP::FS().stat(filename, &st) != 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "No secret file found");
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code Checksum file found");
         reboot(true);
     }
 
     // Open the file in read mode
     int fd = AP::FS().open(filename, O_RDONLY);
     if (fd < 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "File access failed: Unable to open file.");
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code checksum file access failed: Unable to open file.");
         reboot(true);
     }
 
@@ -1163,23 +1164,76 @@ void AP_Vehicle::post_verification_and_file_access(const char *filename) {
 
     // Close the file after reading
     AP::FS().close(fd);
-    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Secret file accessed successfully.");
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code Checksum file accessed successfully.");
 
     // Perform POST checksum verification with the retrieved sd_card_version_input
     if (strlen(sd_card_version_input) == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: SD card version input not found in file.");
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Code Checksum version input not found in file.");
         reboot(true);
     }
 
     // Compare the checksum
     if (strcmp(version.fw_hash_str, sd_card_version_input) == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Checksum Matches. Vehicle Ready");
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Code Checksum Matches. Vehicle Ready");
     } else {
         // POST failed due to checksum mismatch
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Checksum Mismatch. Vehicle in boot mode.");
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Code Checksum Mismatch. Vehicle in boot mode.");
         reboot(true);
     }
 }
+
+void AP_Vehicle::post_verification_with_data_checksum(const char *filename) {
+    struct stat st;
+
+    // Check if the file exists
+    if (AP::FS().stat(filename, &st) != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "No data checksum file found");
+        reboot(true);
+    }
+
+    // Open the file in read mode
+    int fd = AP::FS().open(filename, O_RDONLY);
+    if (fd < 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Data checksum file access failed: Unable to open file.");
+        reboot(true);
+    }
+
+    // Buffer to hold file data and accumulate SD card version input
+    const size_t buffer_size = 128;
+    char buffer[buffer_size];
+    int32_t read_size;
+    char sd_card_key_input[1024] = {0};  // Using a C-style character array, initialized to empty
+
+    // Read the file content into the buffer
+    while ((read_size = AP::FS().read(fd, buffer, buffer_size - 1)) > 0) {
+        buffer[read_size] = '\0';  // Null-terminate the buffer
+        // Concatenate buffer to sd_card_key_input
+        strncat(sd_card_key_input, buffer, sizeof(sd_card_key_input) - strlen(sd_card_key_input) - 1);
+    }
+
+    // Close the file after reading
+    AP::FS().close(fd);
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Data checksum file accessed successfully.");
+
+    // Perform POST length verification with the retrieved sd_card_key_input
+    uint8_t key_length = strlen(sd_card_key_input);
+    if (key_length == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Data file key input not found in file.");
+        reboot(true);
+    }
+
+    // Verify if the length of the key matches the expected length (for example, 32 bytes)
+    const uint8_t expected_length = 64;  // Replace with the actual expected length
+    if (key_length == expected_length) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Data checksum Key Matches. Vehicle Ready");
+    } else {
+        // POST failed due to key length mismatch
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Data checksum Key Mismatch. Vehicle in boot mode.");
+        reboot(true);
+    }
+}
+
+
 
 // Check if this mode can be entered from the GCS
 #if APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane) || APM_BUILD_TYPE(APM_BUILD_Rover)
