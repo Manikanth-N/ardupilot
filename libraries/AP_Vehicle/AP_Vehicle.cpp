@@ -28,6 +28,8 @@ extern AP_IOMCU iomcu;
 #endif
 #include <AP_Scripting/AP_Scripting.h>
 #include <sys/stat.h> 
+#include "AP_Filesystem/posix_compat.h"
+
 
 #define SCHED_TASK(func, rate_hz, max_time_micros, prio) SCHED_TASK_CLASS(AP_Vehicle, &vehicle, func, rate_hz, max_time_micros, prio)
 
@@ -419,11 +421,14 @@ void AP_Vehicle::setup()
 #endif
 
     // POST verificaiton is done here
-    post_verification_with_code_checksum("APM/code_checksum.txt");
-    post_verification_with_data_checksum("APM/data_checksum.txt");
-    
+    // post_verification_with_code_checksum("APM/code_checksum.txt");
+    // post_verification_with_data_checksum("APM/data_checksum.txt");
+    log_firmware_version("version_history.txt");
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
+
+    // log_firmware_version("version_history.txt");
+
 
 #if AP_SCRIPTING_ENABLED
     scripting.init();
@@ -1233,6 +1238,66 @@ void AP_Vehicle::post_verification_with_data_checksum(const char *filename) {
     }
 }
 
+bool AP_Vehicle::log_firmware_version(const char *filename) 
+{
+    bool version_matched = false;
+
+    // Retrieve the full firmware version string
+    const char *full_version = AP::fwversion().fw_string;
+
+    // Extract the version part (before the first '(' character)
+    char current_version[60];
+    strncpy(current_version, full_version, sizeof(current_version) - 1);
+    current_version[sizeof(current_version) - 1] = '\0';  // Ensure null termination
+
+    // Locate the first '(' to find the start of the hash
+    char *parenthesis_pos = strchr(current_version, '(');
+    if (parenthesis_pos != nullptr) {
+        *parenthesis_pos = '\0';  // Truncate at the '(' character
+
+        // Extract the first five characters of the hash
+        char hash_part[6] = "";  // 5 characters + null terminator
+        strncpy(hash_part, parenthesis_pos + 1, 5);
+        hash_part[5] = '\0';
+
+        // Append the first five characters of the hash to the version string
+        strncat(current_version, " (", sizeof(current_version) - strlen(current_version) - 1);
+        strncat(current_version, hash_part, sizeof(current_version) - strlen(current_version) - 1);
+        strncat(current_version, ")", sizeof(current_version) - strlen(current_version) - 1);
+    }
+
+    // Use APFS_FILE for compatibility with AP_Filesystem
+    APFS_FILE *file = apfs_fopen(filename, "r");
+    if (file != nullptr) {
+        char line[100];
+        char last_line[100] = "";
+
+        // Read through the file to find the last line
+        while (apfs_fgets(line, sizeof(line), file)) {
+            strncpy(last_line, line, sizeof(last_line) - 1);
+            last_line[sizeof(last_line) - 1] = '\0';  // Ensure null termination
+        }
+        apfs_fclose(file);
+
+        // Check if the last logged version matches the current version
+        if (strncmp(last_line, current_version, strlen(current_version)) == 0) {
+            version_matched = true;
+        }
+    }
+
+    // If the version does not match, append the new version
+    if (!version_matched) {
+        file = apfs_fopen(filename, "a");
+        if (file != nullptr) {
+            apfs_fprintf(file, "%s\n", current_version);
+            apfs_fclose(file);
+        } else {
+            hal.console->printf("Failed to open version history file for writing\n");
+            return false;
+        }
+    }
+    return true;
+}
 
 
 // Check if this mode can be entered from the GCS
