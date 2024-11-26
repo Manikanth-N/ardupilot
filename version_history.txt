@@ -1,0 +1,12 @@
+Time Stamp     : Nov 26 2024 21:57:22
+Firmware Version: ArduCopter V4.4.4  (80b7d)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 26 2024 21:59:37
+Firmware Version: ArduCopter V4.4.4  (80b7d)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 26 2024 21:59:37
+Firmware Version: ArduCopter V4.4.4  (80b7d)
+Flashed successfully
+---------------------------------------

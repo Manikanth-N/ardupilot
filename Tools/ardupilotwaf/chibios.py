@@ -398,10 +398,10 @@ def chibios_firmware(self):
     generate_apj_task = self.create_task('generate_apj', src=bin_target, tgt=apj_target)
     generate_apj_task.set_run_after(generate_bin_task)
 
-    if self.env.BUILD_ABIN:
-        abin_target = self.bld.bldnode.find_or_declare('bin/' + link_output.change_ext('.abin').name)
-        abin_task = self.create_task('build_abin', src=link_output, tgt=abin_target)
-        abin_task.set_run_after(generate_apj_task)
+    # if self.env.BUILD_ABIN:
+    abin_target = self.bld.bldnode.find_or_declare('bin/' + link_output.change_ext('.abin').name)
+    abin_task = self.create_task('build_abin', src=link_output, tgt=abin_target)
+    abin_task.set_run_after(generate_apj_task)
 
     cleanup_task = self.create_task('build_normalized_bins', src=bin_target)
     cleanup_task.set_run_after(generate_apj_task)

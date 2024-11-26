@@ -20,6 +20,7 @@
 #include <AP_Scripting/AP_Scripting.h>
 #include <sys/stat.h> 
 #include "AP_Filesystem/posix_compat.h"
+#include <ctime> // Include time.h for system time functions
 
 #define SCHED_TASK(func, rate_hz, max_time_micros, prio) SCHED_TASK_CLASS(AP_Vehicle, &vehicle, func, rate_hz, max_time_micros, prio)
 
@@ -211,9 +212,9 @@ void AP_Vehicle::setup()
 #endif
 
     // POST verificaiton is done here
-    // post_verification_with_code_checksum("APM/code_checksum.txt");
-    // post_verification_with_data_checksum("APM/data_checksum.txt");
-    // log_firmware_version("version_history.txt");
+    post_verification_with_code_checksum("APM/code_checksum.txt");
+    post_verification_with_data_checksum("APM/data_checksum.txt");
+    log_firmware_version("version_history.txt");
 
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
@@ -936,56 +937,72 @@ bool AP_Vehicle::log_firmware_version(const char *filename)
     const char *full_version = AP::fwversion().fw_string;
 
     // Extract the version part (before the first '(' character)
-    char current_version[60];
+    char current_version[100];
     strncpy(current_version, full_version, sizeof(current_version) - 1);
     current_version[sizeof(current_version) - 1] = '\0';  // Ensure null termination
 
     // Locate the first '(' to find the start of the hash
     char *parenthesis_pos = strchr(current_version, '(');
     if (parenthesis_pos != nullptr) {
-        *parenthesis_pos = '\0';  // Truncate at the '(' character
+        *parenthesis_pos = '\0';
 
-        // Extract the first five characters of the hash
         char hash_part[6] = "";  // 5 characters + null terminator
         strncpy(hash_part, parenthesis_pos + 1, 5);
         hash_part[5] = '\0';
 
-        // Append the first five characters of the hash to the version string
         strncat(current_version, " (", sizeof(current_version) - strlen(current_version) - 1);
         strncat(current_version, hash_part, sizeof(current_version) - strlen(current_version) - 1);
         strncat(current_version, ")", sizeof(current_version) - strlen(current_version) - 1);
     }
 
-    // Use APFS_FILE for compatibility with AP_Filesystem
+    // Use compile-time macros for build timestamp
+    const char *build_date = __DATE__;
+    const char *build_time = __TIME__;
+
+    // Format the full entry
+    char formatted_entry[256];
+    snprintf(formatted_entry, sizeof(formatted_entry),
+             "Time Stamp     : %s %s\nFirmware Version: %s\nFlashed successfully\n---------------------------------------\n",
+             build_date, build_time, current_version);
+
     APFS_FILE *file = apfs_fopen(filename, "r");
-    if (file != nullptr) {
-        char line[100];
-        char last_line[100] = "";
-
-        // Read through the file to find the last line
-        while (apfs_fgets(line, sizeof(line), file)) {
-            strncpy(last_line, line, sizeof(last_line) - 1);
-            last_line[sizeof(last_line) - 1] = '\0';  // Ensure null termination
-        }
-        apfs_fclose(file);
-
-        // Check if the last logged version matches the current version
-        if (strncmp(last_line, current_version, strlen(current_version)) == 0) {
-            version_matched = true;
-        }
+    if (file == nullptr) {
+        hal.console->printf("Error: Could not open %s for reading\n", filename);
+        return true; // Avoid blocking main code
     }
 
-    // If the version does not match, append the new version
+    char line[256];
+    char last_entry[256] = "";
+    int line_count = 0;
+    const int max_lines = 1000;
+
+    while (apfs_fgets(line, sizeof(line), file) && line_count < max_lines) {
+        strncpy(last_entry, line, sizeof(last_entry) - 1);
+        last_entry[sizeof(last_entry) - 1] = '\0';
+        line_count++;
+    }
+
+    apfs_fclose(file);
+
+    if (line_count == max_lines) {
+        hal.console->printf("Warning: Reached max lines in %s\n", filename);
+    }
+
+    if (strcmp(last_entry, formatted_entry) == 0) {
+        version_matched = true;
+    }
+
     if (!version_matched) {
         file = apfs_fopen(filename, "a");
-        if (file != nullptr) {
-            apfs_fprintf(file, "%s\n", current_version);
-            apfs_fclose(file);
-        } else {
-            hal.console->printf("Failed to open version history file for writing\n");
-            return false;
+        if (file == nullptr) {
+            hal.console->printf("Error: Could not open %s for writing\n", filename);
+            return true;
         }
+
+        apfs_fprintf(file, "%s", formatted_entry);
+        apfs_fclose(file);
     }
+
     return true;
 }
 
