@@ -10,7 +10,7 @@ test -n "$FORCEBUILD" || {
 
 newtags=$(cd APM && git fetch --tags | wc -l)
 oldhash=$(cd APM && git rev-parse origin/master)
-newhash=$(cd APM && git rev-parse HEAD)
+newhash=$(cd APM && git rev-parse HEAD | sha256sum | awk '{print $1}')
 
 if [ "$oldhash" = "$newhash" -a "$newtags" = "0" ]; then
     echo "$(date) no change $oldhash $newhash" >> build.log
@@ -52,7 +52,7 @@ lock_file build.lck || {
 (
 date
 
-oldhash=$(cd APM && git rev-parse HEAD)
+oldhash=$(cd APM && git rev-parse HEAD | sha256sum | awk '{print $1}')
 
 echo "Updating APM"
 pushd APM
@@ -80,7 +80,7 @@ git show
 python setup.py build install --user
 popd
 
-githash=$(cd APM && git rev-parse HEAD)
+githash=$(cd APM && git rev-parse HEAD | sha256sum | awk '{print $1}')
 hdate=$(date +"%Y-%m-%d-%H:%m")
 
 (cd APM && Tools/scripts/build_parameters.sh)

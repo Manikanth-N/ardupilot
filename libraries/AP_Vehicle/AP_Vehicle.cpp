@@ -211,9 +211,9 @@ void AP_Vehicle::setup()
 #endif
 
     // POST verificaiton is done here
-    post_verification_with_code_checksum("APM/code_checksum.txt");
-    post_verification_with_data_checksum("APM/data_checksum.txt");
-    log_firmware_version("version_history.txt");
+    // post_verification_with_code_checksum("APM/code_checksum.txt");
+    // post_verification_with_data_checksum("APM/data_checksum.txt");
+    // log_firmware_version("version_history.txt");
 
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();

@@ -86,17 +86,33 @@ class embedded_defaults(object):
         f.close()
         print("Saved apj of length %u" % len(self.firmware))
 
+    # def save_abin(self):
+    #     '''save abin file'''
+    #     f = open(self.filename,'w')
+    #     for i in range(len(self.headers)):
+    #         line = self.headers[i]
+    #         if line.startswith('MD5: '):
+    #             h = hashlib.new('md5')
+    #             h.update(self.firmware)
+    #             f.write('MD5: %s\n' % h.hexdigest())
+    #         else:
+    #             f.write(line+'\n')
+    #     f.write('--\n')
+    #     f.write(self.firmware)
+    #     f.close()
+    #     print("Saved abin of length %u" % len(self.firmware))
+
     def save_abin(self):
-        '''save abin file'''
-        f = open(self.filename,'w')
+        '''save abin file with SHA-256'''
+        f = open(self.filename, 'w')
         for i in range(len(self.headers)):
             line = self.headers[i]
-            if line.startswith('MD5: '):
-                h = hashlib.new('md5')
+            if line.startswith('SHA256: '):  # Change the header to indicate SHA-256
+                h = hashlib.sha256()  # Use SHA-256 instead of MD5
                 h.update(self.firmware)
-                f.write('MD5: %s\n' % h.hexdigest())
+                f.write('SHA256: %s\n' % h.hexdigest())  # Update to use SHA-256 hash
             else:
-                f.write(line+'\n')
+                f.write(line + '\n')
         f.write('--\n')
         f.write(self.firmware)
         f.close()

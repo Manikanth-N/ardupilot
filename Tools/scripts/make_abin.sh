@@ -16,14 +16,18 @@ ABINFILE="$2"
     exit 1
 }
 
-sum=$(md5sum "$BINFILE" | cut -d' ' -f1)
-githash=$(git rev-parse HEAD)
+# sum=$(md5sum "$BINFILE" | cut -d' ' -f1)
+sum=$(sha256sum "$BINFILE" | cut -d' ' -f1)
 
-echo "githash $githash md5 $sum"
+# githash=$(git rev-parse HEAD)
+githash=$(git rev-parse HEAD | sha256sum | awk '{print $1}')
+
+echo "githash $githash sha256 $sum"
+# echo "githash $githash md5 $sum"
 
 cat <<EOF > "$ABINFILE"
 git version: $githash
-MD5: $sum
+SHA256: $sum
 --
 EOF
 cat "$BINFILE" >> "$ABINFILE"
