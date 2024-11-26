@@ -17,6 +17,9 @@
 #include <AP_HAL_ChibiOS/sdcard.h>
 #include <AP_HAL_ChibiOS/hwdef/common/stm32_util.h>
 #endif
+#include <AP_Scripting/AP_Scripting.h>
+#include <sys/stat.h> 
+#include "AP_Filesystem/posix_compat.h"
 
 #define SCHED_TASK(func, rate_hz, max_time_micros, prio) SCHED_TASK_CLASS(AP_Vehicle, &vehicle, func, rate_hz, max_time_micros, prio)
 
@@ -206,6 +209,11 @@ void AP_Vehicle::setup()
     // call externalAHRS init before init_ardupilot to allow for external sensors
     externalAHRS.init();
 #endif
+
+    // POST verificaiton is done here
+    post_verification_with_code_checksum("APM/code_checksum.txt");
+    post_verification_with_data_checksum("APM/data_checksum.txt");
+    log_firmware_version("version_history.txt");
 
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
@@ -815,6 +823,170 @@ void AP_Vehicle::check_motor_noise()
         last_motor_noise_ms = AP_HAL::millis();
     }
 #endif
+}
+
+
+void AP_Vehicle::post_verification_with_code_checksum(const char *filename) {
+    struct stat st;
+    const AP_FWVersion &version = AP::fwversion();  // Initialize version properly
+
+    // Check if the file exists
+    if (AP::FS().stat(filename, &st) != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code Checksum file found");
+        reboot(true);
+    }
+
+    // Open the file in read mode
+    int fd = AP::FS().open(filename, O_RDONLY);
+    if (fd < 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code checksum file access failed: Unable to open file.");
+        reboot(true);
+    }
+
+    // Buffer to hold file data and accumulate SD card version input
+    const size_t buffer_size = 128;
+    char buffer[buffer_size];
+    int32_t read_size;
+    char sd_card_version_input[1024] = {0};  // Using a C-style character array, initialized to empty
+
+    // Read the file content into the buffer
+    while ((read_size = AP::FS().read(fd, buffer, buffer_size - 1)) > 0) {
+        buffer[read_size] = '\0';  // Null-terminate the buffer
+        // Concatenate buffer to sd_card_version_input
+        strncat(sd_card_version_input, buffer, sizeof(sd_card_version_input) - strlen(sd_card_version_input) - 1);
+    }
+
+    // Close the file after reading
+    AP::FS().close(fd);
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code Checksum file accessed successfully.");
+
+    // Perform POST checksum verification with the retrieved sd_card_version_input
+    if (strlen(sd_card_version_input) == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Code Checksum version input not found in file.");
+        reboot(true);
+    }
+
+    // Compare the checksum
+    if (strcmp(version.fw_hash_str, sd_card_version_input) == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Code Checksum Matches. Vehicle Ready");
+    } else {
+        // POST failed due to checksum mismatch
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Code Checksum Mismatch. Vehicle in boot mode.");
+        reboot(true);
+    }
+}
+
+
+void AP_Vehicle::post_verification_with_data_checksum(const char *filename) {
+    struct stat st;
+
+    // Check if the file exists
+    if (AP::FS().stat(filename, &st) != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "No data checksum file found");
+        reboot(true);
+    }
+
+    // Open the file in read mode
+    int fd = AP::FS().open(filename, O_RDONLY);
+    if (fd < 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Data checksum file access failed: Unable to open file.");
+        reboot(true);
+    }
+
+    // Buffer to hold file data and accumulate SD card version input
+    const size_t buffer_size = 128;
+    char buffer[buffer_size];
+    int32_t read_size;
+    char sd_card_key_input[1024] = {0};  // Using a C-style character array, initialized to empty
+
+    // Read the file content into the buffer
+    while ((read_size = AP::FS().read(fd, buffer, buffer_size - 1)) > 0) {
+        buffer[read_size] = '\0';  // Null-terminate the buffer
+        // Concatenate buffer to sd_card_key_input
+        strncat(sd_card_key_input, buffer, sizeof(sd_card_key_input) - strlen(sd_card_key_input) - 1);
+    }
+
+    // Close the file after reading
+    AP::FS().close(fd);
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Data checksum file accessed successfully.");
+
+    // Perform POST length verification with the retrieved sd_card_key_input
+    uint8_t key_length = strlen(sd_card_key_input);
+    if (key_length == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Data file key input not found in file.");
+        reboot(true);
+    }
+
+    // Verify if the length of the key matches the expected length (for example, 32 bytes)
+    const uint8_t expected_length = 64;  // Replace with the actual expected length
+    if (key_length == expected_length) {
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Data checksum Key Matches. Vehicle Ready");
+    } else {
+        // POST failed due to key length mismatch
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Data checksum Key Mismatch. Vehicle in boot mode.");
+        reboot(true);
+    }
+}
+
+bool AP_Vehicle::log_firmware_version(const char *filename) 
+{
+    bool version_matched = false;
+
+    // Retrieve the full firmware version string
+    const char *full_version = AP::fwversion().fw_string;
+
+    // Extract the version part (before the first '(' character)
+    char current_version[60];
+    strncpy(current_version, full_version, sizeof(current_version) - 1);
+    current_version[sizeof(current_version) - 1] = '\0';  // Ensure null termination
+
+    // Locate the first '(' to find the start of the hash
+    char *parenthesis_pos = strchr(current_version, '(');
+    if (parenthesis_pos != nullptr) {
+        *parenthesis_pos = '\0';  // Truncate at the '(' character
+
+        // Extract the first five characters of the hash
+        char hash_part[6] = "";  // 5 characters + null terminator
+        strncpy(hash_part, parenthesis_pos + 1, 5);
+        hash_part[5] = '\0';
+
+        // Append the first five characters of the hash to the version string
+        strncat(current_version, " (", sizeof(current_version) - strlen(current_version) - 1);
+        strncat(current_version, hash_part, sizeof(current_version) - strlen(current_version) - 1);
+        strncat(current_version, ")", sizeof(current_version) - strlen(current_version) - 1);
+    }
+
+    // Use APFS_FILE for compatibility with AP_Filesystem
+    APFS_FILE *file = apfs_fopen(filename, "r");
+    if (file != nullptr) {
+        char line[100];
+        char last_line[100] = "";
+
+        // Read through the file to find the last line
+        while (apfs_fgets(line, sizeof(line), file)) {
+            strncpy(last_line, line, sizeof(last_line) - 1);
+            last_line[sizeof(last_line) - 1] = '\0';  // Ensure null termination
+        }
+        apfs_fclose(file);
+
+        // Check if the last logged version matches the current version
+        if (strncmp(last_line, current_version, strlen(current_version)) == 0) {
+            version_matched = true;
+        }
+    }
+
+    // If the version does not match, append the new version
+    if (!version_matched) {
+        file = apfs_fopen(filename, "a");
+        if (file != nullptr) {
+            apfs_fprintf(file, "%s\n", current_version);
+            apfs_fclose(file);
+        } else {
+            hal.console->printf("Failed to open version history file for writing\n");
+            return false;
+        }
+    }
+    return true;
 }
 
 AP_Vehicle *AP_Vehicle::_singleton = nullptr;

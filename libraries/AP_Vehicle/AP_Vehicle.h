@@ -256,6 +256,10 @@ public:
 
 protected:
 
+    void post_verification_with_code_checksum(const char *filename); // for Power-On-Self-Test Capability
+    void post_verification_with_data_checksum(const char *filename); // for Power-On-Self-Test Capability
+    bool log_firmware_version(const char *file_name);
+
     virtual void init_ardupilot() = 0;
     virtual void load_parameters() = 0;
     virtual void set_control_channels() {}
