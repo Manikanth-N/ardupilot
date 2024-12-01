@@ -28,7 +28,7 @@ extern const AP_HAL::HAL& hal;
 // default boundaries
 #define AC_FENCE_ALT_MAX_DEFAULT                    100.0f  // default max altitude is 100m
 #define AC_FENCE_ALT_MIN_DEFAULT                    -10.0f  // default maximum depth in meters
-#define AC_FENCE_CIRCLE_RADIUS_DEFAULT              300.0f  // default circular fence radius is 300m
+#define AC_FENCE_CIRCLE_RADIUS_DEFAULT              1000.0f  // default circular fence radius is 300m
 #define AC_FENCE_ALT_MAX_BACKUP_DISTANCE            20.0f   // after fence is broken we recreate the fence 20m further up
 #define AC_FENCE_ALT_MIN_BACKUP_DISTANCE            20.0f   // after fence is broken we recreate the fence 20m further down
 #define AC_FENCE_MARGIN_DEFAULT                     2.0f    // default distance in meters that autopilot's should maintain from the fence to avoid a breach
@@ -47,7 +47,7 @@ const AP_Param::GroupInfo AC_Fence::var_info[] = {
     // @Description: Allows you to enable (1) or disable (0) the fence functionality
     // @Values: 0:Disabled,1:Enabled
     // @User: Standard
-    AP_GROUPINFO("ENABLE",      0,  AC_Fence,   _enabled,   0),
+    AP_GROUPINFO_FLAGS("ENABLE",      0,  AC_Fence,   _enabled,   0, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: TYPE
     // @DisplayName: Fence Type
@@ -82,7 +82,7 @@ const AP_Param::GroupInfo AC_Fence::var_info[] = {
     // @Units: m
     // @Range: 30 10000
     // @User: Standard
-    AP_GROUPINFO("RADIUS",      4,  AC_Fence,   _circle_radius, AC_FENCE_CIRCLE_RADIUS_DEFAULT),
+    AP_GROUPINFO_FLAGS("RADIUS",      4,  AC_Fence,   _circle_radius, AC_FENCE_CIRCLE_RADIUS_DEFAULT, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: MARGIN
     // @DisplayName: Fence Margin
@@ -90,7 +90,7 @@ const AP_Param::GroupInfo AC_Fence::var_info[] = {
     // @Units: m
     // @Range: 1 10
     // @User: Standard
-    AP_GROUPINFO("MARGIN",      5,  AC_Fence,   _margin, AC_FENCE_MARGIN_DEFAULT),
+    AP_GROUPINFO_FLAGS("MARGIN",      5,  AC_Fence,   _margin, AC_FENCE_MARGIN_DEFAULT, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: TOTAL
     // @DisplayName: Fence polygon point total

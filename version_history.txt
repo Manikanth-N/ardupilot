@@ -1,12 +1,81 @@
-Time Stamp     : Nov 26 2024 21:57:22
-Firmware Version: ArduCopter V4.4.4  (80b7d)
+Time Stamp     : Nov 30 2024 14:45:28
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
 Flashed successfully
 ---------------------------------------
-Time Stamp     : Nov 26 2024 21:59:37
-Firmware Version: ArduCopter V4.4.4  (80b7d)
+Time Stamp     : Nov 30 2024 14:45:28
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
 Flashed successfully
 ---------------------------------------
-Time Stamp     : Nov 26 2024 21:59:37
-Firmware Version: ArduCopter V4.4.4  (80b7d)
+Time Stamp     : Nov 30 2024 14:45:28
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 14:45:28
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 14:45:28
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:33:35
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:33:35
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:43:56
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:45:23
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:46:25
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:46:58
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:48:37
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:48:37
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:48:37
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 16:48:37
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 17:06:11
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 17:06:52
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 17:06:52
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 17:06:52
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Flashed successfully
+---------------------------------------
+Time Stamp     : Nov 30 2024 19:55:43
+Firmware Version: TARA UAV ARIES Copter V1  (be1c7)
+Checksum verified POST successful
 Flashed successfully
 ---------------------------------------

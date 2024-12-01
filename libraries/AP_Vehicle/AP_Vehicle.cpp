@@ -833,14 +833,14 @@ void AP_Vehicle::post_verification_with_code_checksum(const char *filename) {
 
     // Check if the file exists
     if (AP::FS().stat(filename, &st) != 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code Checksum file found");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Code Checksum file found");
         reboot(true);
     }
 
     // Open the file in read mode
     int fd = AP::FS().open(filename, O_RDONLY);
     if (fd < 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code checksum file access failed: Unable to open file.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Code checksum file access failed: Unable to open file.");
         reboot(true);
     }
 
@@ -859,20 +859,20 @@ void AP_Vehicle::post_verification_with_code_checksum(const char *filename) {
 
     // Close the file after reading
     AP::FS().close(fd);
-    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Code Checksum file accessed successfully.");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Code Checksum file accessed successfully.");
 
     // Perform POST checksum verification with the retrieved sd_card_version_input
     if (strlen(sd_card_version_input) == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Code Checksum version input not found in file.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "POST Failed: Code Checksum version input not found in file.");
         reboot(true);
     }
 
     // Compare the checksum
     if (strcmp(version.fw_hash_str, sd_card_version_input) == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Code Checksum Matches. Vehicle Ready");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "POST Verified: Code Checksum Matches. Vehicle Ready");
     } else {
         // POST failed due to checksum mismatch
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Code Checksum Mismatch. Vehicle in boot mode.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "POST Failed: Code Checksum Mismatch. Vehicle in boot mode.");
         reboot(true);
     }
 }
@@ -883,14 +883,14 @@ void AP_Vehicle::post_verification_with_data_checksum(const char *filename) {
 
     // Check if the file exists
     if (AP::FS().stat(filename, &st) != 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "No data checksum file found");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "No data checksum file found");
         reboot(true);
     }
 
     // Open the file in read mode
     int fd = AP::FS().open(filename, O_RDONLY);
     if (fd < 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Data checksum file access failed: Unable to open file.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Data checksum file access failed: Unable to open file.");
         reboot(true);
     }
 
@@ -909,22 +909,22 @@ void AP_Vehicle::post_verification_with_data_checksum(const char *filename) {
 
     // Close the file after reading
     AP::FS().close(fd);
-    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "Data checksum file accessed successfully.");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Data checksum file accessed successfully.");
 
     // Perform POST length verification with the retrieved sd_card_key_input
     uint8_t key_length = strlen(sd_card_key_input);
     if (key_length == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Data file key input not found in file.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "POST Failed: Data file key input not found in file.");
         reboot(true);
     }
 
     // Verify if the length of the key matches the expected length (for example, 32 bytes)
     const uint8_t expected_length = 64;  // Replace with the actual expected length
     if (key_length == expected_length) {
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Verified: Data checksum Key Matches. Vehicle Ready");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "POST Verified: Data checksum Key Matches. Vehicle Ready");
     } else {
         // POST failed due to key length mismatch
-        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "POST Failed: Data checksum Key Mismatch. Vehicle in boot mode.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "POST Failed: Data checksum Key Mismatch. Vehicle in boot mode.");
         reboot(true);
     }
 }

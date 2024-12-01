@@ -131,7 +131,7 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @Units: MB
     // @Range: 10 1000
     // @User: Standard
-    AP_GROUPINFO("_FILE_MB_FREE",  7, AP_Logger, _params.min_MB_free, 500),
+    AP_GROUPINFO_FLAGS("_FILE_MB_FREE",  7, AP_Logger, _params.min_MB_free, 500, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: _FILE_RATEMAX
     // @DisplayName: Maximum logging rate for file backend

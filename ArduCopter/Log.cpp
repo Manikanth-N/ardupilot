@@ -562,6 +562,7 @@ const struct LogStructure Copter::log_structure[] = {
 
 void Copter::Log_Write_Vehicle_Startup_Messages()
 {
+    logger.Write_MessageF("Checksum Verified.Post Successfull");
     // only 200(?) bytes are guaranteed by AP_Logger
     char frame_and_type_string[30];
     copter.motors->get_frame_and_type_string(frame_and_type_string, ARRAY_SIZE(frame_and_type_string));

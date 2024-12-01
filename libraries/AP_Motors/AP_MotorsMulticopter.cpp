@@ -98,7 +98,7 @@ const AP_Param::GroupInfo AP_MotorsMulticopter::var_info[] = {
     // @Units: PWM
     // @Range: 0 2000
     // @User: Advanced
-    AP_GROUPINFO("PWM_MIN", 16, AP_MotorsMulticopter, _pwm_min, 1000),
+    AP_GROUPINFO_FLAGS("PWM_MIN", 16, AP_MotorsMulticopter, _pwm_min, 1000, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: PWM_MAX
     // @DisplayName: PWM output maximum
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_MotorsMulticopter::var_info[] = {
     // @Units: PWM
     // @Range: 0 2000
     // @User: Advanced
-    AP_GROUPINFO("PWM_MAX", 17, AP_MotorsMulticopter, _pwm_max, 2000),
+    AP_GROUPINFO_FLAGS("PWM_MAX", 17, AP_MotorsMulticopter, _pwm_max, 2000, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: SPIN_MIN
     // @DisplayName: Motor Spin minimum

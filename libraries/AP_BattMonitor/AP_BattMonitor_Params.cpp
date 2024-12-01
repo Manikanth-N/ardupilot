@@ -4,9 +4,9 @@
 #include "AP_BattMonitor.h"
 
 #if APM_BUILD_COPTER_OR_HELI
-  #define DEFAULT_LOW_BATTERY_VOLTAGE 10.5f
+  #define DEFAULT_LOW_BATTERY_VOLTAGE 20.5f
 #else
-  #define DEFAULT_LOW_BATTERY_VOLTAGE 0.0f
+  #define DEFAULT_LOW_BATTERY_VOLTAGE 20.5f
 #endif // APM_BUILD_COPTER_OR_HELI
 
 const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
@@ -75,7 +75,7 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
     // @Units: V
     // @Increment: 0.1
     // @User: Standard
-    AP_GROUPINFO("LOW_VOLT", 12, AP_BattMonitor_Params, _low_voltage, DEFAULT_LOW_BATTERY_VOLTAGE),
+    AP_GROUPINFO_FLAGS("LOW_VOLT", 12, AP_BattMonitor_Params, _low_voltage, DEFAULT_LOW_BATTERY_VOLTAGE, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: LOW_MAH
     // @DisplayName: Low battery capacity
@@ -91,7 +91,7 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
     // @Units: V
     // @Increment: 0.1
     // @User: Standard
-    AP_GROUPINFO("CRT_VOLT", 14, AP_BattMonitor_Params, _critical_voltage, 0),
+    AP_GROUPINFO_FLAGS("CRT_VOLT", 14, AP_BattMonitor_Params, _critical_voltage, 18.5, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: CRT_MAH
     // @DisplayName: Battery critical capacity
@@ -111,7 +111,7 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
     // @Values{Tracker}: 0:None
     // @Values{Blimp}: 0:None,1:Land
     // @User: Standard
-    AP_GROUPINFO("FS_LOW_ACT", 16, AP_BattMonitor_Params, _failsafe_low_action, 0),
+    AP_GROUPINFO_FLAGS("FS_LOW_ACT", 16, AP_BattMonitor_Params, _failsafe_low_action, 0,AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: FS_CRT_ACT
     // @DisplayName: Critical battery failsafe action
@@ -123,7 +123,7 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
     // @Values{Tracker}: 0:None
     // @Values{Blimp}: 0:None,1:Land
     // @User: Standard
-    AP_GROUPINFO("FS_CRT_ACT", 17, AP_BattMonitor_Params, _failsafe_critical_action, 0),
+    AP_GROUPINFO_FLAGS("FS_CRT_ACT", 17, AP_BattMonitor_Params, _failsafe_critical_action, 1, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: ARM_VOLT
     // @DisplayName: Required arming voltage
@@ -131,7 +131,7 @@ const AP_Param::GroupInfo AP_BattMonitor_Params::var_info[] = {
     // @Units: V
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("ARM_VOLT", 18, AP_BattMonitor_Params, _arming_minimum_voltage, 0),
+    AP_GROUPINFO_FLAGS("ARM_VOLT", 18, AP_BattMonitor_Params, _arming_minimum_voltage, 23, AP_PARAM_FLAG_INTERNAL_USE_ONLY),
 
     // @Param: ARM_MAH
     // @DisplayName: Required arming remaining capacity
