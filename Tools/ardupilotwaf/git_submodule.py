@@ -37,6 +37,7 @@ from waflib.TaskGen import before_method, feature, taskgen_method
 
 import os.path
 import re
+import hashlib
 
 class update_submodule(Task.Task):
     color = 'BLUE'
@@ -172,3 +173,17 @@ def git_submodule_head_hash(self, name, short=False):
 @conf
 def git_head_hash(self, short=False):
     return _git_head_hash(self, self.srcnode.abspath(), short=short)
+
+def _git_head_sha256_hash(ctx, path, short=False):
+    # Command to get the full Git commit hash for HEAD
+    cmd = [ctx.env.get_flat('GIT'), 'rev-parse', 'HEAD']
+    # Execute the command to get the latest commit hash
+    commit_hash = ctx.cmd_and_log(cmd, quiet=Context.BOTH, cwd=path).strip()
+
+    # Add a newline to the commit hash and compute the SHA-256 hash
+    sha256_hash = hashlib.sha256(f"{commit_hash}\n".encode()).hexdigest()
+    return sha256_hash
+
+@conf
+def git_head_sha256_hash(self, short=False):
+    return _git_head_sha256_hash(self, self.srcnode.abspath(), short=short)
