@@ -91,10 +91,10 @@ class embedded_defaults(object):
         f = open(self.filename,'w')
         for i in range(len(self.headers)):
             line = self.headers[i]
-            if line.startswith('MD5: '):
-                h = hashlib.new('md5')
+            if line.startswith('SHA256: '):
+                h = hashlib.sha256()
                 h.update(self.firmware)
-                f.write('MD5: %s\n' % h.hexdigest())
+                f.write('SHA256: %s\n' % h.hexdigest())
             else:
                 f.write(line+'\n')
         f.write('--\n')
