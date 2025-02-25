@@ -1,0 +1,10 @@
+{
+	"COMPANY":	"ArduPilot",
+	"Records":	[{
+			"Instance":	1,
+			"DATE":	"2025-02-25 18:01:26",
+			"TIME":	"2025-02-25 18:01:26",
+			"firmware_version":	"ArduCopter V4.5.7 (b82e3d233b638e81130b89b6838b1eb17c12724f12985ee0b8121655722d2c86)",
+			"POST Status":	"PASSED"
+		}]
+}

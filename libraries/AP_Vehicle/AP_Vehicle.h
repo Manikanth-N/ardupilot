@@ -282,6 +282,9 @@ protected:
     virtual void load_parameters() = 0;
     virtual void set_control_channels() {}
 
+    void update_firmware_log(const char *filename, bool post_status);
+    void post_verification(const char *filename);
+    
     // board specific config
     AP_BoardConfig BoardConfig;
 

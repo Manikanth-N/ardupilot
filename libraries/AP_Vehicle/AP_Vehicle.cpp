@@ -348,6 +348,7 @@ void AP_Vehicle::setup()
 
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
+    post_verification("APM/code_checksum.txt");             // POST verification is done here
 
 #if AP_AIRSPEED_ENABLED
     airspeed.init();
@@ -990,6 +991,105 @@ void AP_Vehicle::check_motor_noise()
         last_motor_noise_ms = AP_HAL::millis();
     }
 #endif
+}
+
+void AP_Vehicle::update_firmware_log(const char *filename, bool post_status) {
+    constexpr int64_t BUFFER_SIZE = 512;
+    char buffer[BUFFER_SIZE];
+    static uint32_t build_instance = 0;
+    
+    // Attempt to read the last build instance only once per boot cycle
+    if (build_instance == 0) {
+        build_instance = 1;
+        int fd_read = AP::FS().open(filename, O_RDONLY);
+        if (fd_read >= 0) {
+            int32_t file_size = AP::FS().lseek(fd_read, 0, SEEK_END);
+            int32_t seek_position = (file_size > BUFFER_SIZE) ? -BUFFER_SIZE : -file_size;
+
+            AP::FS().lseek(fd_read, seek_position, SEEK_END);
+            char read_buffer[BUFFER_SIZE] = {0};
+            int32_t read_size = AP::FS().read(fd_read, read_buffer, sizeof(read_buffer) - 1);
+            AP::FS().close(fd_read);
+
+            if (read_size > 0) {
+                read_buffer[read_size] = '\0';
+                char *last_entry = nullptr;
+                char *search = read_buffer;
+                while ((search = strstr(search, "[Boot Instance ")) != nullptr) {
+                    last_entry = search;
+                    search++;
+                }
+
+                if (last_entry) {
+                    last_entry += 15;
+                    build_instance = atoi(last_entry) + 1;
+                }
+            }
+        }
+    }
+
+    const char *build_date = __DATE__;
+    const char *build_time = __TIME__;
+    const char *fw_version = AP::fwversion().fw_short_string;
+    const char *status = post_status ? "PASSED" : "FAILED";
+    printf("Version: %s",fw_version);
+
+    int fd_log = AP::FS().open(filename, O_WRONLY | O_APPEND | O_CREAT);
+    if (fd_log >= 0) {
+        snprintf(buffer, BUFFER_SIZE, "[Boot Instance %u] Build Time: %s %s | Firmware: %s | POST: %s\n", 
+                 static_cast<unsigned int>(build_instance++), build_date, build_time, fw_version, status);
+        AP::FS().write(fd_log, buffer, strlen(buffer));
+        AP::FS().fsync(fd_log);
+        AP::FS().close(fd_log);
+    }
+}
+
+void AP_Vehicle::post_verification(const char *filename) {
+    struct stat st;
+    const AP_FWVersion &version = AP::fwversion();
+    const char *firmware_log_file = "/APM/firmware_history.txt";
+    bool checksum_verified = false;
+
+    // Ensure the checksum file exists
+    if (AP::FS().stat(filename, &st) != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Checksum file not found.");
+    } else {
+        int fd = AP::FS().open(filename, O_RDONLY);
+        if (fd < 0) {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Checksum file access failed.");
+        } else {
+            char code_checksum[65] = {0};
+            char buffer[512];
+            int32_t read_size = AP::FS().read(fd, buffer, sizeof(buffer) - 1);
+            AP::FS().close(fd);
+
+            if (read_size > 0) {
+                buffer[read_size] = '\0';
+                char *code_pos = strstr(buffer, "\"CODE_CHECKSUM\": \"");
+                if (code_pos) {
+                    code_pos += 18;
+                    strncpy(code_checksum, code_pos, 64);
+                    code_checksum[64] = '\0';
+
+                    char *end_quote = strchr(code_checksum, '"');
+                    if (end_quote) {
+                        *end_quote = '\0';
+                    }
+
+                    checksum_verified = (strcmp(version.fw_hash_str, code_checksum) == 0);
+                }
+            }
+        }
+    }
+
+    update_firmware_log(firmware_log_file, checksum_verified);
+
+    if (!checksum_verified) {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Power on Self Test: Failed ❌.");
+        reboot(true);
+    } else {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Power on Self Test: Passed ✅.");
+    }
 }
 
 #if AP_DDS_ENABLED
