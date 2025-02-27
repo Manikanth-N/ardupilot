@@ -1031,12 +1031,12 @@ void AP_Vehicle::update_firmware_log(const char *filename, bool post_status) {
     const char *build_date = __DATE__;
     const char *build_time = __TIME__;
     const char *fw_version = AP::fwversion().fw_short_string;
-    const char *status = post_status ? "PASSED" : "FAILED";
+    const char *status = post_status ? "✅ PASSED" : "❌ FAILED";
     printf("Version: %s",fw_version);
 
     int fd_log = AP::FS().open(filename, O_WRONLY | O_APPEND | O_CREAT);
     if (fd_log >= 0) {
-        snprintf(buffer, BUFFER_SIZE, "[Boot Instance %u] Build Time: %s %s | Firmware: %s | POST: %s\n", 
+        snprintf(buffer, BUFFER_SIZE, "[Boot Instance %u] 🕒 Build Time: %s %s | 🔥 Firmware: %s | 🔍 POST: %s\n", 
                  static_cast<unsigned int>(build_instance++), build_date, build_time, fw_version, status);
         AP::FS().write(fd_log, buffer, strlen(buffer));
         AP::FS().fsync(fd_log);
