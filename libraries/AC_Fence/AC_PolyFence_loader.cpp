@@ -1,4 +1,5 @@
 #include "AC_PolyFence_loader.h"
+#include "nofly_zones.h" // Include No-Fly Zones
 
 #if AP_FENCE_ENABLED
 
@@ -291,7 +292,27 @@ bool AC_PolyFence_loader::breached(const Location& loc) const
         }
     }
 
+    if (is_in_nofly_zone(loc)) {  // ✅ Now passing loc correctly
+        gcs().send_text(MAV_SEVERITY_WARNING, "Breach: Unauthorized entry into No-Fly Zone");
+        return true;
+    }    
+
     // no fence breached
+    return false;
+}
+
+bool AC_PolyFence_loader::is_in_nofly_zone(const Location& loc) const
+{
+    for (uint8_t i = 0; i < num_nofly_zones; i++) {
+        Location center_loc;
+        center_loc.lat = nofly_zones[i].lat;
+        center_loc.lng = nofly_zones[i].lon;
+
+        float dist_cm = loc.get_distance(center_loc) * 100.0f;  
+        if (dist_cm < nofly_zones[i].radius * 100.0f) {
+            return true; // Inside a no-fly zone
+        }
+    }
     return false;
 }
 

@@ -1,2 +1,0 @@
-[Boot Instance 1] 🕒 Build Time: Feb 27 2025 11:05:13 | 🔥 Firmware: ArduCopter V4.5.7 | 🔍 POST: ✅ PASSED
-[Boot Instance 2] 🕒 Build Time: Feb 27 2025 11:05:13 | 🔥 Firmware: ArduCopter V4.5.7 | 🔍 POST: ✅ PASSED

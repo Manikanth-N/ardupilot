@@ -330,6 +330,7 @@ bool ModeGuided::set_destination(const Vector3f& destination, bool use_yaw, floa
     const Location dest_loc(destination, terrain_alt ? Location::AltFrame::ABOVE_TERRAIN : Location::AltFrame::ABOVE_ORIGIN);
     if (!copter.fence.check_destination_within_fence(dest_loc)) {
         LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::DEST_OUTSIDE_FENCE);
+        gcs().send_text(MAV_SEVERITY_WARNING,"No Fly Zone location");
         // failure is propagated to GCS with NAK
         return false;
     }
@@ -426,6 +427,7 @@ bool ModeGuided::set_destination(const Location& dest_loc, bool use_yaw, float y
     // Note: there is a danger that a target specified as a terrain altitude might not be checked if the conversion to alt-above-home fails
     if (!copter.fence.check_destination_within_fence(dest_loc)) {
         LOGGER_WRITE_ERROR(LogErrorSubsystem::NAVIGATION, LogErrorCode::DEST_OUTSIDE_FENCE);
+        gcs().send_text(MAV_SEVERITY_WARNING,"No Fly Zone location");
         // failure is propagated to GCS with NAK
         return false;
     }

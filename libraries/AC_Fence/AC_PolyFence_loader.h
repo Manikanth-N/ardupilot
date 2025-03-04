@@ -2,6 +2,7 @@
 
 #include "AC_Fence_config.h"
 #include <AP_Math/AP_Math.h>
+#include "nofly_zones.h" // Include No-Fly Zones
 
 // CIRCLE_INCLUSION_INT stores the radius an a 32-bit integer in
 // metres.  This was a bug, and CIRCLE_INCLUSION was created to store
@@ -123,6 +124,9 @@ public:
 
     // false if margin < fence radius 
     bool check_inclusion_circle_margin(float margin) const;
+
+    // No Fly Zones
+    bool is_in_nofly_zone(const Location& loc) const;
 
     ///
     /// mavlink
