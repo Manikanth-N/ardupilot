@@ -163,6 +163,11 @@ void AC_Avoid::adjust_velocity_fence(float kP, float accel_cmss, Vector3f &desir
         backup_vel_fence.zero();
         adjust_velocity_exclusion_circles(kP, accel_cmss_limited, desired_velocity_xy_cms, backup_vel_fence, dt);
         find_max_quadrant_velocity(backup_vel_fence, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
+
+        backup_vel_fence.zero();
+        adjust_velocity_no_fly_zones(kP, accel_cmss_limited, desired_velocity_xy_cms, backup_vel_fence, dt);
+        find_max_quadrant_velocity(backup_vel_fence, quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel);
+        
     }
 #endif // AP_FENCE_ENABLED
 
@@ -1017,7 +1022,6 @@ void AC_Avoid::adjust_velocity_exclusion_circles(float kP, float accel_cmss, Vec
         return;
     }
     position_NE = position_NE * 100.0f;  // m to cm
-
     // get the margin to the fence in cm
     const float margin_cm = fence->get_margin() * 100.0f;
 
@@ -1115,6 +1119,101 @@ void AC_Avoid::adjust_velocity_exclusion_circles(float kP, float accel_cmss, Vec
     // desired backup velocity is sum of maximum velocity component in each quadrant 
     backup_vel = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
 }
+
+void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backup_vel, float dt)
+{
+    static uint32_t last_warning_time = 0;
+    static uint32_t last_critical_time = 0;
+    static uint32_t last_emergency_time = 0;
+
+    const uint32_t now = AP_HAL::millis(); // Get current time
+
+    const uint8_t num_zones = num_nofly_zones;
+    if (num_zones == 0) return;
+
+    Vector2f position_NE;
+    if (!AP::ahrs().get_relative_position_NE_origin(position_NE)) {
+        return;
+    }
+    position_NE = position_NE * 100.0f;  // Convert meters to cm
+
+    const float margin_cm = 500.0f;  // Safety buffer before NFZ
+    const float warning_margin_cm = 1000.0f;  // 🚨 Increased warning range (10m before NFZ)
+    
+    Vector2f total_backup_vel(0.0f, 0.0f);
+    bool warning_sent = false;
+    bool critical_sent = false;
+    bool emergency_sent = false;
+
+    for (uint8_t i = 0; i < num_zones; i++) {
+        Vector2f center_pos_cm;
+        float radius_cm;
+        if (get_nofly_zone(i, center_pos_cm, radius_cm)) {
+
+            Vector2f vector_to_center = center_pos_cm - position_NE;
+            float dist_to_boundary = vector_to_center.length() - radius_cm;
+            float dist_sq_cm = vector_to_center.length_squared();
+
+            // 🚨 Immediate Escape if inside the RED ZONE
+            if (dist_sq_cm < sq(radius_cm)) {
+                if (!emergency_sent && now - last_emergency_time > 3000) { // Send every 3s
+                    GCS_SEND_TEXT(MAV_SEVERITY_EMERGENCY, "RED ZONE VIOLATION! ESCAPING!");
+                    last_emergency_time = now;
+                    emergency_sent = true;
+                }
+
+                Vector2f escape_direction = vector_to_center;
+                escape_direction.normalize();
+                float escape_force = accel_cmss * 2.0f; // Stronger force
+                
+                total_backup_vel += escape_direction * escape_force * dt;
+                desired_vel_cms.zero();
+                backup_vel = total_backup_vel;
+                return;
+            }
+
+            // ⚠ **Early Warning - Approaching Red Zone**
+            float warning_distance = radius_cm + warning_margin_cm; // 10m before NFZ
+            if (dist_to_boundary < warning_distance) {
+                if (dist_to_boundary < margin_cm) {
+                    if (!critical_sent && now - last_critical_time > 5000) { // Send every 3s
+                        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "DANGER! IMMEDIATE AVOIDANCE REQUIRED!");
+                        last_critical_time = now;
+                        critical_sent = true;
+                    }
+                } else {
+                    if (!warning_sent && now - last_warning_time > 20000) { // Send every 5s
+                        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "WARNING: Approaching RED ZONE (10m away)!");
+                        last_warning_time = now;
+                        warning_sent = true;
+                    }
+                }
+            }
+
+            // 🚧 Repulsion Force if within MARGIN
+            if (dist_to_boundary < margin_cm) {
+                float repulsion_strength = accel_cmss / (dist_to_boundary + 1.0f);
+                Vector2f repulsion_direction = -vector_to_center;
+                repulsion_direction.normalize();
+
+                total_backup_vel += repulsion_direction * repulsion_strength * dt;
+            }
+
+            // 🛑 Limit Velocity if UAV is Heading Towards NFZ
+            if (desired_vel_cms.dot(vector_to_center) > 0) {
+                float speed_limit = get_max_speed(kP, accel_cmss, dist_to_boundary, dt);
+                if (desired_vel_cms.length() > speed_limit) {
+                    desired_vel_cms *= (speed_limit / desired_vel_cms.length());
+                }
+            }
+        }
+    }
+
+    // Apply calculated backup velocity
+    backup_vel = total_backup_vel;
+}
+
+
 #endif // AP_FENCE_ENABLED
 
 #if AP_BEACON_ENABLED

@@ -139,6 +139,8 @@ private:
      */
     void adjust_velocity_inclusion_circles(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backup_vel, float dt);
     void adjust_velocity_exclusion_circles(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backup_vel, float dt);
+    void adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f &desired_vel_cms, Vector2f &backup_vel, float dt);
+    
 
     /*
      * Adjusts the desired velocity for the beacon fence.
