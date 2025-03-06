@@ -5,36 +5,37 @@
 
 const uint8_t num_nofly_zones = sizeof(nofly_zones) / sizeof(NoFlyZone);
 
-// Function to retrieve No-Fly Zone details by index
+// ✅ **Ensure function matches the declaration**
 bool get_nofly_zone(uint8_t index, Vector2f &center_pos_cm, float &radius) {
     if (index >= num_nofly_zones) {
         return false; // Index out of range
     }
 
-    // Get No-Fly Zone details
+    // Retrieve NFZ details
     const NoFlyZone &zone = nofly_zones[index];
 
-    // Convert lat/lon to NE offsets using EKF origin
+    // ✅ Ensure EKF origin is available
     Location ekf_origin;
     if (!AP::ahrs().get_origin(ekf_origin)) {
         return false;  // No valid EKF origin
     }
 
-    // ✅ FIX: Correctly initialize `Location` for NFZ
+    // ✅ Convert NFZ Lat/Lon to NE Frame
     Location nfz_location;
     nfz_location.lat = zone.lat;
     nfz_location.lng = zone.lon;
-
-
-    // Compute NE offset using ArduPilot's function
     Vector2f ne_offset = ekf_origin.get_distance_NE(nfz_location);
 
-    // Convert to cm (ArduPilot convention)
-    center_pos_cm = ne_offset * 100.0f;
-    radius = zone.radius * 100.0f;  // Convert meters to cm
-    
+    // ✅ Convert to cm (ArduPilot convention)
+    center_pos_cm = ne_offset * 100.0f;  // Store center position in cm
+
+    // ✅ Assign default radius (ignored in AC_Avoid.cpp)
+    radius = 0.0f;  
+
     return true;
 }
+
+
 
 NFZ_Severity check_nofly_zone_severity(const Location& loc) {
     NFZ_Severity highest_severity = NFZ_Severity::GREEN;  // Default to GREEN

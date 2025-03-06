@@ -33,7 +33,6 @@ extern const uint8_t num_nofly_zones;
 
 // ✅ Declare `get_nofly_zone()`
 bool get_nofly_zone(uint8_t index, Vector2f &center_pos_cm, float &radius);
-
 // ✅ Declare `check_nofly_zone_severity()`
 NFZ_Severity check_nofly_zone_severity(const Location& loc);
 

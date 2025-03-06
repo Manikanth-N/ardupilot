@@ -37,6 +37,9 @@ static StorageAccess fence_storage(StorageManager::StorageFence);
 #define AC_FENCE_SDCARD_FILENAME "fence.stg"
 #endif
 
+uint32_t AC_PolyFence_loader::last_warning_time = 0;
+
+
 void AC_PolyFence_loader::init()
 {
 #if AP_SDCARD_STORAGE_ENABLED
@@ -292,10 +295,20 @@ bool AC_PolyFence_loader::breached(const Location& loc) const
         }
     }
 
-    if (is_in_nofly_zone(loc)) {  // ✅ Now passing loc correctly
-        gcs().send_text(MAV_SEVERITY_WARNING, "Breach: Unauthorized entry into No-Fly Zone");
+
+    static const uint32_t warning_interval_ms = 30000;  // 30 seconds
+    uint32_t now = AP_HAL::millis();  // Current time in ms
+    
+    if (is_in_nofly_zone(loc)) {
+        if (now - AC_PolyFence_loader::last_warning_time > warning_interval_ms) {
+            // Send the warning to GCS
+            gcs().send_text(MAV_SEVERITY_WARNING, "Breach: Unauthorized entry into No-Fly Zone");
+            
+            // Update the last warning time
+            AC_PolyFence_loader::last_warning_time = now;
+        }
         return true;
-    }    
+    }
 
     // no fence breached
     return false;

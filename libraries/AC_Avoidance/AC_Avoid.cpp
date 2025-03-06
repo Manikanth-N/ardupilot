@@ -1137,80 +1137,233 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
     }
     position_NE = position_NE * 100.0f;  // Convert meters to cm
 
+    // Get UAV altitude in centimeters
+    float altitude_down;
+    AP_AHRS &_ahrs = AP::ahrs();
+    if (!_ahrs.get_relative_position_D_origin(altitude_down)) {
+        return;
+    }
+    float altitude_cm = -altitude_down * 100.0f; // Convert to cm (positive upwards)
+
+    // Define Red and Yellow Zone radii
+    const float red_zone_radius_cm = 30000.0f;   // Red Zone radius (30km)
+    const float yellow_zone_radius_cm = 50000.0f; // Yellow Zone radius (50km)
+
     const float margin_cm = 500.0f;  // Safety buffer before NFZ
-    const float warning_margin_cm = 1000.0f;  // 🚨 Increased warning range (10m before NFZ)
+    const float warning_margin_cm = 1000.0f;  // Early warning range
     
-    Vector2f total_backup_vel(0.0f, 0.0f);
+    // Quadrant backup velocities for more systematic avoidance
+    Vector2f quad_1_back_vel, quad_2_back_vel, quad_3_back_vel, quad_4_back_vel;
     bool warning_sent = false;
     bool critical_sent = false;
     bool emergency_sent = false;
 
+    // Get desired speed
+    const float desired_speed = desired_vel_cms.length();
+    
+    // Calculate stopping distance for BEHAVIOR_STOP
+    Vector2f stopping_offset;
+    if (!is_zero(desired_speed) && (AC_Avoid::BehaviourType)_behavior.get() == BEHAVIOR_STOP) {
+        stopping_offset = desired_vel_cms * ((2.0f + margin_cm + get_stopping_distance(kP, accel_cmss, desired_speed)) / desired_speed);
+    }
+
+    bool inside_red_zone = false;
+    bool near_red_zone = false;
+    
     for (uint8_t i = 0; i < num_zones; i++) {
         Vector2f center_pos_cm;
-        float radius_cm;
-        if (get_nofly_zone(i, center_pos_cm, radius_cm)) {
+        float ignored_radius;
 
-            Vector2f vector_to_center = center_pos_cm - position_NE;
-            float dist_to_boundary = vector_to_center.length() - radius_cm;
-            float dist_sq_cm = vector_to_center.length_squared();
+        // Retrieve the No-Fly Zone center position and radius
+        if (!get_nofly_zone(i, center_pos_cm, ignored_radius)) {
+            continue; // Skip if invalid NFZ data
+        }
 
-            // 🚨 Immediate Escape if inside the RED ZONE
-            if (dist_sq_cm < sq(radius_cm)) {
-                if (!emergency_sent && now - last_emergency_time > 3000) { // Send every 3s
-                    GCS_SEND_TEXT(MAV_SEVERITY_EMERGENCY, "RED ZONE VIOLATION! ESCAPING!");
-                    last_emergency_time = now;
-                    emergency_sent = true;
+        // Compute UAV's relative distance to NFZ center
+        Vector2f vector_to_center = center_pos_cm - position_NE;
+        float dist_cm = vector_to_center.length();
+        float dist_to_red_boundary = dist_cm - red_zone_radius_cm;
+        float dist_to_yellow_boundary = dist_cm - yellow_zone_radius_cm;
+
+        // RED ZONE HANDLING (Using Slide Mechanism)
+        if (dist_cm < red_zone_radius_cm) {
+            // Inside Red Zone - Emergency escape needed
+            inside_red_zone = true;
+            
+            if (!emergency_sent && now - last_emergency_time > 3000) {
+                GCS_SEND_TEXT(MAV_SEVERITY_EMERGENCY, "🚨 RED ZONE VIOLATION! ESCAPING!");
+                last_emergency_time = now;
+                emergency_sent = true;
+            }
+            
+            // Calculate backup velocity using quadrant method for smoother escape
+            calc_backup_velocity_2D(kP, accel_cmss * 2.0f, 
+                                   quad_1_back_vel, quad_2_back_vel, 
+                                   quad_3_back_vel, quad_4_back_vel, 
+                                   margin_cm + 100.0f, // Add extra margin for emergencies
+                                   vector_to_center, dt);  // Move away from center (no breach)
+        } 
+        // Near Red Zone boundary - proactive avoidance using slide mechanism
+        else if (dist_to_red_boundary < margin_cm) {
+            near_red_zone = true;
+            
+            if (!critical_sent && now - last_critical_time > 5000) {
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "🚧 STOP: Red Zone Boundary Reached!");
+                last_critical_time = now;
+                critical_sent = true;
+            }
+            
+            // Implement the slide mechanism similar to the yellow zone
+            if (dist_to_red_boundary < margin_cm && dist_to_red_boundary > 0) {
+                // Calculate the tangential direction for sliding along the boundary
+                Vector2f limit_direction = vector_to_center;
+                if (!limit_direction.is_zero()) {
+                    limit_direction.normalize();
+                    
+                    // Adjust velocity to slide along the red zone boundary
+                    limit_velocity_2D(kP, accel_cmss, desired_vel_cms, limit_direction, 
+                                     dist_to_red_boundary - margin_cm, dt); // Slide along boundary
                 }
+            }
+        }
+        // Early warning when approaching Red Zone
+        else if (dist_to_red_boundary < warning_margin_cm) {
+            if (!warning_sent && now - last_warning_time > 20000) {
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "⚠️ WARNING: Approaching RED ZONE!");
+                last_warning_time = now;
+                warning_sent = true;
+            }
+        }
 
-                Vector2f escape_direction = vector_to_center;
-                escape_direction.normalize();
-                float escape_force = accel_cmss * 2.0f; // Stronger force
+        // YELLOW ZONE HANDLING (Above 40m altitude)
+        if (dist_cm < yellow_zone_radius_cm && dist_cm > red_zone_radius_cm && altitude_cm > 4000.0f) {
+            if (!critical_sent && now - last_critical_time > 5000) {
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "⚠️ YELLOW ZONE RESTRICTED: Descend Below 40m!");
+                last_critical_time = now;
+                critical_sent = true;
+            }
+
+            // Apply yellow zone boundary forces if near the boundary
+            if (dist_to_yellow_boundary < margin_cm) {
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "🚧 STOP: Yellow Zone Boundary Reached!");
                 
-                total_backup_vel += escape_direction * escape_force * dt;
-                desired_vel_cms.zero();
-                backup_vel = total_backup_vel;
-                return;
+                // Calculate backup velocity for yellow zone
+                calc_backup_velocity_2D(kP, accel_cmss, 
+                                       quad_1_back_vel, quad_2_back_vel, 
+                                       quad_3_back_vel, quad_4_back_vel, 
+                                       margin_cm - dist_to_yellow_boundary,
+                                       vector_to_center, dt);  // Move away from center
             }
+        }
 
-            // ⚠ **Early Warning - Approaching Red Zone**
-            float warning_distance = radius_cm + warning_margin_cm; // 10m before NFZ
-            if (dist_to_boundary < warning_distance) {
-                if (dist_to_boundary < margin_cm) {
-                    if (!critical_sent && now - last_critical_time > 5000) { // Send every 3s
-                        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "DANGER! IMMEDIATE AVOIDANCE REQUIRED!");
-                        last_critical_time = now;
-                        critical_sent = true;
+        // Apply behavior-specific logic if not in emergency situation
+        if (!inside_red_zone && !is_zero(desired_speed)) {
+            // BEHAVIOR HANDLING
+            switch (_behavior) {
+                case BEHAVIOR_SLIDE: {
+                    // Check if near a boundary that we should slide along
+                    bool near_red_boundary = (dist_to_red_boundary < margin_cm && dist_to_red_boundary > 0);
+                    bool near_yellow_boundary = (dist_to_yellow_boundary < margin_cm && 
+                                                dist_to_yellow_boundary > 0 && 
+                                                altitude_cm > 4000.0f);
+                    
+                    if (near_red_boundary || near_yellow_boundary) {
+                        // Normalize boundary direction
+                        Vector2f limit_direction = vector_to_center;
+                        if (!limit_direction.is_zero()) {
+                            limit_direction.normalize();
+                            
+                            // Calculate effective distance to boundary
+                            float limit_distance_cm;
+                            if (near_red_boundary) {
+                                limit_distance_cm = dist_to_red_boundary;
+                            } else {
+                                limit_distance_cm = dist_to_yellow_boundary;
+                            }
+                            
+                            // Adjust velocity to slide along boundary
+                            limit_velocity_2D(kP, accel_cmss, desired_vel_cms, limit_direction, 
+                                             MAX(limit_distance_cm - margin_cm, 0.0f), dt);
+                        }
                     }
-                } else {
-                    if (!warning_sent && now - last_warning_time > 20000) { // Send every 5s
-                        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "WARNING: Approaching RED ZONE (10m away)!");
-                        last_warning_time = now;
-                        warning_sent = true;
-                    }
+                    break;
                 }
-            }
-
-            // 🚧 Repulsion Force if within MARGIN
-            if (dist_to_boundary < margin_cm) {
-                float repulsion_strength = accel_cmss / (dist_to_boundary + 1.0f);
-                Vector2f repulsion_direction = -vector_to_center;
-                repulsion_direction.normalize();
-
-                total_backup_vel += repulsion_direction * repulsion_strength * dt;
-            }
-
-            // 🛑 Limit Velocity if UAV is Heading Towards NFZ
-            if (desired_vel_cms.dot(vector_to_center) > 0) {
-                float speed_limit = get_max_speed(kP, accel_cmss, dist_to_boundary, dt);
-                if (desired_vel_cms.length() > speed_limit) {
-                    desired_vel_cms *= (speed_limit / desired_vel_cms.length());
+                
+                case BEHAVIOR_STOP: {
+                    // Calculate stopping point with margin
+                    const Vector2f stopping_point = position_NE + stopping_offset;
+                    
+                    // Check red zone first (priority)
+                    if (dist_to_red_boundary < margin_cm) {
+                        // Already near red zone boundary
+                        // Check if stopping point would enter the red zone
+                        Vector2f stopping_to_center = center_pos_cm - stopping_point;
+                        
+                        if (stopping_to_center.length() <= red_zone_radius_cm + margin_cm) {
+                            // Stopping point would enter red zone, reduce speed
+                            desired_vel_cms.zero();
+                        }
+                    } else if (is_positive(dist_to_red_boundary)) {
+                        // Outside red zone, check if path intersects
+                        Vector2f position_rel = position_NE - center_pos_cm;
+                        Vector2f stopping_point_rel = stopping_point - center_pos_cm;
+                        Vector2f intersection;
+                        
+                        if (Vector2f::circle_segment_intersection(position_rel, stopping_point_rel, 
+                                                                 Vector2f(0.0f, 0.0f), 
+                                                                 red_zone_radius_cm + margin_cm, 
+                                                                 intersection)) {
+                            // Calculate distance to intersection
+                            float distance_to_intersection = (intersection - position_rel).length();
+                            // Calculate max speed to stop before intersection
+                            float max_speed = get_max_speed(kP, accel_cmss, distance_to_intersection, dt);
+                            if (max_speed < desired_speed) {
+                                desired_vel_cms *= MAX(max_speed, 0.0f) / desired_speed;
+                            }
+                        }
+                    }
+                    
+                    // Similar checks for yellow zone at high altitude
+                    if (altitude_cm > 4000.0f && !inside_red_zone && !near_red_zone) {
+                        // Yellow zone checks (only if not already handling red zone)
+                        // Similar logic as above for red zone
+                        if (dist_to_yellow_boundary < margin_cm) {
+                            Vector2f stopping_to_center = center_pos_cm - stopping_point;
+                            
+                            if (stopping_to_center.length() <= yellow_zone_radius_cm + margin_cm) {
+                                desired_vel_cms.zero();
+                            }
+                        } else if (is_positive(dist_to_yellow_boundary)) {
+                            Vector2f position_rel = position_NE - center_pos_cm;
+                            Vector2f stopping_point_rel = stopping_point - center_pos_cm;
+                            Vector2f intersection;
+                            
+                            if (Vector2f::circle_segment_intersection(position_rel, stopping_point_rel, 
+                                                                     Vector2f(0.0f, 0.0f), 
+                                                                     yellow_zone_radius_cm + margin_cm, 
+                                                                     intersection)) {
+                                float distance_to_intersection = (intersection - position_rel).length();
+                                float max_speed = get_max_speed(kP, accel_cmss, distance_to_intersection, dt);
+                                if (max_speed < desired_speed) {
+                                    desired_vel_cms *= MAX(max_speed, 0.0f) / desired_speed;
+                                }
+                            }
+                        }
+                    }
+                    break;
                 }
             }
         }
     }
 
-    // Apply calculated backup velocity
-    backup_vel = total_backup_vel;
+    // Inside red zone - emergency escape takes priority over all other behaviors
+    if (inside_red_zone) {
+        // Allow free movement away from the boundary
+        desired_vel_cms += quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
+    }
+    
+    // Apply the calculated backup velocity
+    backup_vel = quad_1_back_vel + quad_2_back_vel + quad_3_back_vel + quad_4_back_vel;
 }
 
 

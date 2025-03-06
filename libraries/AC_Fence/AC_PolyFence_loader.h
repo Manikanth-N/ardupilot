@@ -126,6 +126,7 @@ public:
     bool check_inclusion_circle_margin(float margin) const;
 
     // No Fly Zones
+    static uint32_t last_warning_time;
     bool is_in_nofly_zone(const Location& loc) const;
 
     ///
