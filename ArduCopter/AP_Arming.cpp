@@ -365,6 +365,12 @@ bool AP_Arming_Copter::gps_checks(bool display_failure)
         return false;
     }
 
+    if (in_nofly_zone(copter.gps.location(), display_failure)) {
+        // Do something if the UAV is not in a no-fly zone
+         check_failed(display_failure, "You are in No fly zone");
+        return false;
+    }
+
     // return true if GPS is not required
     if (!mode_requires_gps) {
         AP_Notify::flags.pre_arm_gps_check = true;

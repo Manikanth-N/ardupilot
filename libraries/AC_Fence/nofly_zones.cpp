@@ -2,6 +2,7 @@
 #include "AP_Math/AP_Math.h"
 #include "AP_Common/Location.h"
 #include "AP_AHRS/AP_AHRS.h"
+#include <GCS_MAVLink/GCS.h>
 
 const uint8_t num_nofly_zones = sizeof(nofly_zones) / sizeof(NoFlyZone);
 
@@ -36,34 +37,50 @@ bool get_nofly_zone(uint8_t index, Vector2f &center_pos_cm, float &radius) {
 }
 
 
+bool in_nofly_zone(const Location& current_location, bool display_failure) {
+    // Log the current UAV location in the GCS
+    // gcs().send_text(MAV_SEVERITY_DEBUG, "UAV Location = (%d, %d)", current_location.lat, current_location.lng);
 
-NFZ_Severity check_nofly_zone_severity(const Location& loc) {
-    NFZ_Severity highest_severity = NFZ_Severity::GREEN;  // Default to GREEN
+    // Define the radii for the red and yellow zones (in meters)
+    const float red_zone_radius = 30000.0f;  // Red Zone radius in meters
+    const float yellow_zone_radius = 50000.0f;  // Yellow Zone radius in meters
+    // const float warning_distance = 40.0f;  // Maximum allowed distance inside the yellow zone
 
+    // Iterate over all no-fly zones
     for (uint8_t i = 0; i < num_nofly_zones; i++) {
-        Vector2f center_pos_cm;
-        float radius;
+        // Create Location for the no-fly zone center
+        Location nfz_location;
+        nfz_location.lat = nofly_zones[i].lat;
+        nfz_location.lng = nofly_zones[i].lon;
 
-        if (get_nofly_zone(i, center_pos_cm, radius)) {
-            // ✅ FIX: Correctly initialize a `Location` object
-            Location nfz_location;
-            nfz_location.lat = nofly_zones[i].lat;
-            nfz_location.lng = nofly_zones[i].lon;
 
-            // ✅ FIX: Call `get_distance_NE()` properly
-            Vector2f position_NE = loc.get_distance_NE(nfz_location);
-            float distance_cm = position_NE.length();
+        // Get the distance between the current vehicle location and the No Fly Zone center
+        Vector2f position_NE = current_location.get_distance_NE(nfz_location);  // Using passed location
+        float distance_cm = position_NE.length() * 100.0f;  // Distance in centimeters
 
-            if (distance_cm < radius) {
-                // Inside No-Fly Zone
-                if (nofly_zones[i].level > highest_severity) {
-                    highest_severity = nofly_zones[i].level;
-                }
+        // Check if the vehicle is inside the No Fly Zone
+        if (distance_cm < red_zone_radius) {  // Red zone radius in cm (300m = 30000cm)
+            // Inside red zone, prevent arming
+            if (display_failure) {
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "UAV is inside a red no-fly zone. Cannot arm.");
             }
+            return true;  // The vehicle is inside the red No Fly Zone, return true (cannot arm)
+        } else if (distance_cm < yellow_zone_radius) {  // Yellow zone radius in cm (500m = 50000cm)
+            // Inside yellow zone (within 40 meters of the red zone)
+            if (display_failure) {
+                gcs().send_text(MAV_SEVERITY_WARNING, "Warning: UAV is within %f meters of a red no-fly zone.", yellow_zone_radius - distance_cm / 100.0f);
+            }
+
+            // Check if the UAV is too close to the center of the yellow zone (within 40 meters)
+            // if (distance_cm > yellow_zone_radius * 100.0f - warning_distance * 100.0f) {
+            //     if (display_failure) {
+            //         gcs().send_text(MAV_SEVERITY_WARNING, "Warning: UAV is too close to the red no-fly zone. You cannot fly more than 40 meters into the yellow zone.");
+            //     }
+            //     return true;
+            // }
         }
     }
 
-    return highest_severity;
+    return false;  // The vehicle is not inside any No Fly Zone
 }
-
 
