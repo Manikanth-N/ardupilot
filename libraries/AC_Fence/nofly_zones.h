@@ -23,16 +23,15 @@ struct NoFlyZone {
 
 // Predefined No-Fly Zones
 const NoFlyZone nofly_zones[] = {
-    // {374200000, -1220840000, 500}, // Example: Lat 37.42, Lon -122.084, Radius 500m
-    // {374210000, -1220850000, 300}, // Another No-Fly Zone
-    {-353632621, 1491652374, 200},  // Third No-Fly Zone
-    {-353603393, 1491596668, 300}  // Third No-Fly Zone
-    // {-353632621, 1491652374, 200}  // Third No-Fly Zone
+    {174837938,787595492,5000} // Near tara UAV drone Academy test place
+    
 };
 
 extern const uint8_t num_nofly_zones;
+extern const uint16_t in_yellow_zone_radius;
 
 // ✅ Declare `get_nofly_zone()`
 bool get_nofly_zone(uint8_t index, Vector2f &center_pos_cm, float &radius);
 bool in_nofly_zone(const Location& current_location, bool display_failure);
+bool in_yellow_zone();
 #endif // NOFLY_ZONES_H

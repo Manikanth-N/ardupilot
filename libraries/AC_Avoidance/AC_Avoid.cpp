@@ -396,12 +396,21 @@ void AC_Avoid::adjust_velocity_z(float kP, float accel_cmss, float& climb_rate_c
 #if AP_FENCE_ENABLED
     // calculate distance below fence
     AC_Fence *fence = AP::fence();
+
+    float safe_fence_alt_max;
+    if(in_yellow_zone()){
+        safe_fence_alt_max= 39;
+    }
+    else{
+        safe_fence_alt_max=fence->get_safe_alt_max();
+    }
+
     if ((_enabled & AC_AVOID_STOP_AT_FENCE) > 0 && fence && (fence->get_enabled_fences() & AC_FENCE_TYPE_ALT_MAX) > 0) {
         // calculate distance from vehicle to safe altitude
         float veh_alt;
         _ahrs.get_relative_position_D_home(veh_alt);
         // _fence.get_safe_alt_max() is UP, veh_alt is DOWN:
-        alt_diff = fence->get_safe_alt_max() + veh_alt;
+        alt_diff = safe_fence_alt_max + veh_alt;
         limit_alt = true;
     }
 #endif
@@ -1146,8 +1155,8 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
     float altitude_cm = -altitude_down * 100.0f; // Convert to cm (positive upwards)
 
     // Define Red and Yellow Zone radii
-    const float red_zone_radius_cm = 30000.0f;   // Red Zone radius (30km)
-    const float yellow_zone_radius_cm = 50000.0f; // Yellow Zone radius (50km)
+    const float red_zone_radius_cm = 500000.0f;   // Red Zone radius (30km)
+    const float yellow_zone_radius_cm = 800000.0f; // Yellow Zone radius (50km)
 
     const float margin_cm = 500.0f;  // Safety buffer before NFZ
     const float warning_margin_cm = 1000.0f;  // Early warning range

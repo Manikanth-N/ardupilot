@@ -298,7 +298,6 @@ bool AC_PolyFence_loader::breached(const Location& loc) const
 
     static const uint32_t warning_interval_ms = 30000;  // 30 seconds
     uint32_t now = AP_HAL::millis();  // Current time in ms
-    
     if (is_in_nofly_zone(loc)) {
         if (now - AC_PolyFence_loader::last_warning_time > warning_interval_ms) {
             // Send the warning to GCS
@@ -321,7 +320,7 @@ bool AC_PolyFence_loader::is_in_nofly_zone(const Location& loc) const
         center_loc.lat = nofly_zones[i].lat;
         center_loc.lng = nofly_zones[i].lon;
 
-        float dist_cm = loc.get_distance(center_loc) * 100.0f;  
+        float dist_cm = loc.get_distance(center_loc) * 100.0f;
         if (dist_cm < nofly_zones[i].radius * 100.0f) {
             return true; // Inside a no-fly zone
         }
