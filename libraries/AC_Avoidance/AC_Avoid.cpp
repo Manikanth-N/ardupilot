@@ -1153,10 +1153,11 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
         return;
     }
     float altitude_cm = -altitude_down * 100.0f; // Convert to cm (positive upwards)
-
+    
     // Define Red and Yellow Zone radii
-    const float red_zone_radius_cm = 500000.0f;   // Red Zone radius (30km)
-    const float yellow_zone_radius_cm = 800000.0f; // Yellow Zone radius (50km)
+    const float red_zone_radius_cm = get_red_zone_radius()*100.0f;   // Red Zone radius (30km)
+    // const float yellow_zone_radius_cm = 800000.0f; // Yellow Zone radius (50km)
+    const float yellow_zone_radius_cm = get_yellow_zone_radius()*100.0f;
 
     const float margin_cm = 500.0f;  // Safety buffer before NFZ
     const float warning_margin_cm = 1000.0f;  // Early warning range
@@ -1200,7 +1201,7 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
             inside_red_zone = true;
             
             if (!emergency_sent && now - last_emergency_time > 3000) {
-                GCS_SEND_TEXT(MAV_SEVERITY_EMERGENCY, "🚨 RED ZONE VIOLATION! ESCAPING!");
+                GCS_SEND_TEXT(MAV_SEVERITY_EMERGENCY, "RED ZONE VIOLATION! ESCAPING!");
                 last_emergency_time = now;
                 emergency_sent = true;
             }
@@ -1217,7 +1218,7 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
             near_red_zone = true;
             
             if (!critical_sent && now - last_critical_time > 5000) {
-                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "🚧 STOP: Red Zone Boundary Reached!");
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "STOP: Red Zone Boundary Reached!");
                 last_critical_time = now;
                 critical_sent = true;
             }
@@ -1238,7 +1239,7 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
         // Early warning when approaching Red Zone
         else if (dist_to_red_boundary < warning_margin_cm) {
             if (!warning_sent && now - last_warning_time > 20000) {
-                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "⚠️ WARNING: Approaching RED ZONE!");
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "WARNING: Approaching RED ZONE!");
                 last_warning_time = now;
                 warning_sent = true;
             }
@@ -1247,14 +1248,14 @@ void AC_Avoid::adjust_velocity_no_fly_zones(float kP, float accel_cmss, Vector2f
         // YELLOW ZONE HANDLING (Above 40m altitude)
         if (dist_cm < yellow_zone_radius_cm && dist_cm > red_zone_radius_cm && altitude_cm > 4000.0f) {
             if (!critical_sent && now - last_critical_time > 5000) {
-                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "⚠️ YELLOW ZONE RESTRICTED: Descend Below 40m!");
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "YELLOW ZONE RESTRICTED: Descend Below 40m!");
                 last_critical_time = now;
                 critical_sent = true;
             }
 
             // Apply yellow zone boundary forces if near the boundary
             if (dist_to_yellow_boundary < margin_cm) {
-                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "🚧 STOP: Yellow Zone Boundary Reached!");
+                GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "STOP: Yellow Zone Boundary Reached!");
                 
                 // Calculate backup velocity for yellow zone
                 calc_backup_velocity_2D(kP, accel_cmss, 

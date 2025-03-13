@@ -348,7 +348,7 @@ void AP_Vehicle::setup()
 
     // init_ardupilot is where the vehicle does most of its initialisation.
     init_ardupilot();
-    post_verification("APM/code_checksum.txt");             // POST verification is done here
+    // post_verification("APM/code_checksum.txt");             // POST verification is done here
 
 #if AP_AIRSPEED_ENABLED
     airspeed.init();

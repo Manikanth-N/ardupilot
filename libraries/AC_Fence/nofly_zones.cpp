@@ -5,7 +5,8 @@
 #include <GCS_MAVLink/GCS.h>
 
 const uint8_t num_nofly_zones = sizeof(nofly_zones) / sizeof(NoFlyZone);
-const uint16_t in_yellow_zone_radius = 8000;  // Correct definition
+const uint16_t red_zone_radius = 5000;          // radius in meters
+const uint16_t yellow_zone_radius = 8000;       // radius in meters
 
 // ✅ **Ensure function matches the declaration**
 bool get_nofly_zone(uint8_t index, Vector2f &center_pos_cm, float &radius) {
@@ -43,8 +44,8 @@ bool in_nofly_zone(const Location& current_location, bool display_failure) {
     // gcs().send_text(MAV_SEVERITY_DEBUG, "UAV Location = (%d, %d)", current_location.lat, current_location.lng);
 
     // Define the radii for the red and yellow zones (in meters)
-    const float red_zone_radius = 30000.0f;  // Red Zone radius in meters
-    const float yellow_zone_radius = 50000.0f;  // Yellow Zone radius in meters
+    // const float red_zone_radius = 30000.0f;  // Red Zone radius in meters
+    // const float yellow_zone_radius = 50000.0f;  // Yellow Zone radius in meters
     // const float warning_distance = 40.0f;  // Maximum allowed distance inside the yellow zone
 
     // Iterate over all no-fly zones
@@ -107,7 +108,7 @@ bool in_yellow_zone() {
         Vector2f position_NE = current_location.get_distance_NE(nfz_location);
         float distance_m = position_NE.length();  // Distance in meters
         // Check if the UAV is within the No-Fly Zone radius
-        if (distance_m <= in_yellow_zone_radius) {
+        if (distance_m <= yellow_zone_radius) {
             return true;  // UAV is inside a No-Fly (Yellow) Zone
             // gcs().send_text(MAV_SEVERITY_DEBUG,"Hello True");
         }
@@ -115,4 +116,12 @@ bool in_yellow_zone() {
 
     }
     return false;  // UAV is outside all No-Fly Zones
+}
+
+uint16_t get_yellow_zone_radius() {
+    return yellow_zone_radius;
+}
+
+uint16_t get_red_zone_radius() {
+    return red_zone_radius;
 }
