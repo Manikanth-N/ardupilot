@@ -17,6 +17,10 @@ struct NoFlyZone {
 // Predefined No-Fly Zones
 const NoFlyZone nofly_zones[] = {
     {174837938,787595492,5000}, // Near tara UAV drone Academy test place
+    {172296731,784318854,5000}, // Shamshabad Airport (RGIA)
+    {174531500,784688199,5000}, // Begumpet Airport
+    {176281299,784054301,5000}, // Dundigal Airport
+    {175532699,785217400,5000}, // Hakimpet Airport
 
 };
 

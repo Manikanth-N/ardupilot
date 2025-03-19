@@ -63,15 +63,15 @@ bool in_nofly_zone(const Location& current_location, bool display_failure) {
         // Check if the vehicle is inside the No Fly Zone
         if (distance_cm < red_zone_radius) {  // Red zone radius in cm (300m = 30000cm)
             // Inside red zone, prevent arming
-            if (display_failure) {
+            // if (display_failure) {
                 gcs().send_text(MAV_SEVERITY_CRITICAL, "UAV is inside a red no-fly zone. Cannot arm.");
-            }
+            // }
             return true;  // The vehicle is inside the red No Fly Zone, return true (cannot arm)
         } else if (distance_cm < yellow_zone_radius) {  // Yellow zone radius in cm (500m = 50000cm)
             // Inside yellow zone (within 40 meters of the red zone)
-            if (display_failure) {
+            // if (display_failure) {
                 gcs().send_text(MAV_SEVERITY_WARNING, "Warning: UAV is within %f meters of a red no-fly zone.", yellow_zone_radius - distance_cm / 100.0f);
-            }
+            // }
 
             // Check if the UAV is too close to the center of the yellow zone (within 40 meters)
             // if (distance_cm > yellow_zone_radius * 100.0f - warning_distance * 100.0f) {
