@@ -20,7 +20,7 @@
 #include "mcu_l4.h"
 
 // optional uprintf() code for debug
-#define BOOTLOADER_DEBUG SD1
+#define BOOTLOADER_DEBUG SDU1
 
 #ifndef AP_BOOTLOADER_ALWAYS_ERASE
 #define AP_BOOTLOADER_ALWAYS_ERASE 0
@@ -338,21 +338,20 @@ void uprintf(const char *fmt, ...)
 {
 #ifdef BOOTLOADER_DEBUG
     va_list ap;
-    static bool initialised;
-    static SerialConfig debug_sercfg;
     char umsg[200];
-    if (!initialised) {
-        initialised = true;
-        debug_sercfg.speed = 57600;
-        sdStart(&BOOTLOADER_DEBUG, &debug_sercfg);
-    }
+
     va_start(ap, fmt);
     uint32_t n = vsnprintf(umsg, sizeof(umsg), fmt, ap);
     va_end(ap);
+
     if (n > sizeof(umsg)) {
         n = sizeof(umsg);
     }
-    chnWriteTimeout(&BOOTLOADER_DEBUG, (const uint8_t *)umsg, n, chTimeMS2I(100));
+
+    chnWriteTimeout((BaseChannel *)&BOOTLOADER_DEBUG,
+                    (const uint8_t *)umsg,
+                    n,
+                    chTimeMS2I(100));
 #endif
 }
 

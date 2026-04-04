@@ -1,4 +1,5 @@
 void jump_to_app(void);
+void secure_jump_to_app(void);
 void bootloader(unsigned timeout);
 
 /*****************************************************************************

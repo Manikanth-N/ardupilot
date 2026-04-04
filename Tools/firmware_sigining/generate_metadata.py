@@ -59,7 +59,7 @@ def create_metadata(firmware_path, output_path):
     print("\n⚠️ Flash Addresses:")
     print("  Bootloader    : 0x08000000")
     print("  Metadata      : 0x08020000")
-    print("  Firmware      : 0x08021000\n")
+    print("  Firmware      : 0x08040000\n")
 
 
 # ===============================

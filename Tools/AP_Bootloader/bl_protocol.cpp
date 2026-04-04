@@ -54,6 +54,8 @@
 #include <AP_FlashIface/AP_FlashIface_JEDEC.h>
 #endif
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
+#include "securing_firmware.h"
+
 
 // #pragma GCC optimize("O0")
 
@@ -243,6 +245,61 @@ do_jump(uint32_t stacktop, uint32_t entrypoint)
 #if !defined(STM32_OTG2_IS_OTG1)
 #define STM32_OTG2_IS_OTG1 0
 #endif
+
+void 
+secure_jump_to_app(void)
+{
+    uprintf("\nBootloader started...\n");
+    uprintf("Waiting 3 seconds for terminal...\n");
+
+    for (int i = 3; i > 0; i--) {
+        uprintf("Starting in %d...\n", i);
+        thread_sleep_ms(1000);
+    }
+
+    uprintf("\n=== SECURE BOOT START ===\n");
+
+    // 🔐 STEP 1: SIGNATURE VERIFICATION (ArduPilot)
+    #if AP_CHECK_FIRMWARE_ENABLED
+        const auto ok = check_good_firmware();
+        if (ok != check_fw_result_t::CHECK_FW_OK) {
+            uprintf("❌ SIGNATURE VERIFICATION FAILED\n");
+            handle_verification_failure();
+        }
+    #endif
+
+    uprintf("✅ SIGNATURE VERIFIED\n");
+
+    // 🔍 STEP 2: METADATA READ
+    uprintf("\n=== POST Verification Starts ===\n");
+
+    if (!read_metadata()) {
+        uprintf("❌ Registered Checksums invalid\n");
+        handle_verification_failure();
+    }
+
+    uprintf("Registered Checksums accessed successfully\n");
+
+    // 🧠 STEP 3: SHA256 CHECK
+    if (!verify_firmware()) {
+        uprintf("❌ Code Checksum Mismatch\n");
+        handle_verification_failure();
+    }
+
+    uprintf("✅ Code Checksum Verified\n");
+
+    // 🚀 STEP 4: JUMP TO APPLICATION
+    uprintf("➡️ Jumping to application...\n");
+    
+    for (int i = 3; i > 0; i--) {
+        uprintf("Starting in %d...\n", i);
+        thread_sleep_ms(1000);
+    }
+
+    thread_sleep_ms(100);   // allow logs to flush
+
+    jump_to_app();
+}
 
 void
 jump_to_app()

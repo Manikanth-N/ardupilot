@@ -45,6 +45,11 @@ static inline bool read_metadata(void)
         return false;
     }
 
+    if (metadata.firmware_size == 0 ||
+        metadata.firmware_size > (2 * 1024 * 1024)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -75,6 +80,20 @@ static inline bool verify_firmware(void)
 
     compute_firmware_hash(computed_hash);
 
+    uprintf("\n--- FW VERIFY ---\n");
+
+    // uprintf("Computed: ");
+    // for (int i = 0; i < 32; i++) {
+    //     uprintf("%02X", computed_hash[i]);
+    // }
+
+    // uprintf("\nExpected: ");
+    // for (int i = 0; i < 32; i++) {
+    //     uprintf("%02X", metadata.sha256[i]);
+    // }
+
+    uprintf("Checksum Verification in Progress...\n"); 
+
     return (memcmp(computed_hash, metadata.sha256, 32) == 0);
 }
 
@@ -88,8 +107,12 @@ static inline void handle_verification_failure(void)
     led_set(LED_BAD_FW);
 #endif
 
+    uprintf("🚨 BOOT BLOCKED: FW VERIFICATION FAILED\n");
+
     while (1) {
-        // Optional: blink LED or send debug message
+
+        uprintf("🚨 BOOT BLOCKED: FW VERIFICATION FAILED\n");
+        chThdSleep(chTimeMS2I(1000));
     }
 }
 

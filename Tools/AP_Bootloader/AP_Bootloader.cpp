@@ -38,7 +38,6 @@
 #endif
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
 #include "network.h"
-#include "securing_firmware.h"
 
 extern "C" {
     int main(void);
@@ -134,6 +133,7 @@ int main(void)
         timeout = 0;
         try_boot = false;
         led_set(LED_BAD_FW);
+        uprintf("Bad firmware, staying in bootloader\n");
     }
 #if AP_BOOTLOADER_NETWORK_ENABLED
     if (ok == check_fw_result_t::CHECK_FW_OK) {
@@ -171,6 +171,7 @@ int main(void)
         timeout = 0;
         try_boot = false;
         led_set(LED_BAD_FW);
+        uprintf("Bad firmware, staying in bootloader\n");
     }
 #endif
 
@@ -205,24 +206,13 @@ int main(void)
 #endif
 
     if (try_boot) {
-        jump_to_app();
+        secure_jump_to_app();
     }
 
 #if defined(BOOTLOADER_DEV_LIST)
     init_uarts();
 #endif
-    
-    while (1) {
-    uprintf("BOOTLOADER LOOP\n");
-    chThdSleep(chTimeMS2I(1000));
-    }
-    if (!read_metadata()) {
-        handle_verification_failure();
-    }
 
-    if (!verify_firmware()) {
-        handle_verification_failure();
-    }
 
 #if HAL_USE_CAN == TRUE || HAL_NUM_CAN_IFACES
     can_start();
@@ -234,14 +224,14 @@ int main(void)
 
 #if AP_BOOTLOADER_FLASH_FROM_SD_ENABLED
     if (flash_from_sd()) {
-        jump_to_app();
+        secure_jump_to_app();
     }
 #endif
 
 #if defined(BOOTLOADER_DEV_LIST)
     while (true) {
         bootloader(timeout);
-        jump_to_app();
+        secure_jump_to_app();
     }
 #else
     // CAN and network only
@@ -251,7 +241,7 @@ int main(void)
             can_update();
             chThdSleep(chTimeMS2I(1));
         }
-        jump_to_app();
+        secure_jump_to_app();
     }
 #endif
 }
