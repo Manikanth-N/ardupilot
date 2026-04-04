@@ -20,7 +20,7 @@
 #include "mcu_l4.h"
 
 // optional uprintf() code for debug
-// #define BOOTLOADER_DEBUG SD1
+#define BOOTLOADER_DEBUG SD1
 
 #ifndef AP_BOOTLOADER_ALWAYS_ERASE
 #define AP_BOOTLOADER_ALWAYS_ERASE 0

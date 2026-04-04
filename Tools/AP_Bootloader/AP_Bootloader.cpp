@@ -38,6 +38,7 @@
 #endif
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
 #include "network.h"
+#include "securing_firmware.h"
 
 extern "C" {
     int main(void);
@@ -210,6 +211,19 @@ int main(void)
 #if defined(BOOTLOADER_DEV_LIST)
     init_uarts();
 #endif
+    
+    while (1) {
+    uprintf("BOOTLOADER LOOP\n");
+    chThdSleep(chTimeMS2I(1000));
+    }
+    if (!read_metadata()) {
+        handle_verification_failure();
+    }
+
+    if (!verify_firmware()) {
+        handle_verification_failure();
+    }
+
 #if HAL_USE_CAN == TRUE || HAL_NUM_CAN_IFACES
     can_start();
 #endif
