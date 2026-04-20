@@ -62,3 +62,12 @@
 
 #include <AP_Rally/AP_Rally_config.h>
 #define HAL_LOGGER_RALLY_ENABLED HAL_LOGGING_ENABLED && HAL_RALLY_ENABLED
+
+// ============================================================
+// Secure logging: Blake2b hash chain + Ed25519 signature.
+// Uses Monocypher (already in ArduPilot via AP_CheckFirmware).
+// No extra dependencies. Set to 0 to compile out entirely.
+// ============================================================
+#ifndef HAL_SECURE_LOGGING_ENABLED
+#define HAL_SECURE_LOGGING_ENABLED 1
+#endif

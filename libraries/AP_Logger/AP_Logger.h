@@ -376,6 +376,12 @@ public:
     void set_vehicle_armed(bool armed_state);
     bool vehicle_is_armed() const { return _armed; }
 
+#if HAL_SECURE_LOGGING_ENABLED
+    // Forward deferred secure-log stop to all file backends.
+    // Call from disarm path after set_vehicle_armed(false).
+    void request_secure_stop();
+#endif
+
     void handle_log_send();
     bool in_log_download() const;
 

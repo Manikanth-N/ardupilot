@@ -100,6 +100,10 @@ public:
     // asynchronously stop logging, status can be determined through logging_started()
     virtual void stop_logging_async(void) { stop_logging(); }
 
+    // Request deferred secure-log finalisation from any context.
+    // Base no-op; AP_Logger_File overrides when HAL_SECURE_LOGGING_ENABLED.
+    virtual void request_secure_stop(void) { }
+
     void Fill_Format(const struct LogStructure *structure, struct log_Format &pkt);
     void Fill_Format_Units(const struct LogStructure *s, struct log_Format_Units &pkt);
 

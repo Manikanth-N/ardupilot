@@ -40,7 +40,7 @@ extern const AP_HAL::HAL& hal;
 #endif
 
 #ifndef HAL_LOGGING_STACK_SIZE
-#define HAL_LOGGING_STACK_SIZE 1580
+#define HAL_LOGGING_STACK_SIZE 4096  // increased: Ed25519 signing needs ~200B extra stack
 #endif
 
 #ifndef HAL_LOGGING_MAV_BUFSIZE
@@ -1727,6 +1727,23 @@ void AP_Logger::file_content_update(FileContent &file_content)
     }
 }
 #endif // HAL_LOGGER_FILE_CONTENTS_ENABLED
+
+#if HAL_SECURE_LOGGING_ENABLED
+/*
+  Propagate a deferred secure-log stop to every file backend.
+  Called from ArduCopter/AP_Arming.cpp after set_vehicle_armed(false).
+  Each backend sets _sec_stop_pending = true; io_timer() consumes it,
+  drains the write buffer, writes the SecureEndRecord, then closes.
+*/
+void AP_Logger::request_secure_stop()
+{
+    for (uint8_t i = 0; i < _next_backend; i++) {
+        if (backends[i] != nullptr) {
+            backends[i]->request_secure_stop();
+        }
+    }
+}
+#endif // HAL_SECURE_LOGGING_ENABLED
 
 namespace AP {
 

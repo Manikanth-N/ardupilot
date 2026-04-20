@@ -827,6 +827,11 @@ bool AP_Arming_Copter::disarm(const AP_Arming::Method method, bool do_disarm_che
 
 #if HAL_LOGGING_ENABLED
     AP::logger().set_vehicle_armed(false);
+#if HAL_SECURE_LOGGING_ENABLED
+    // Trigger deferred secure-log finalisation (drain buffer +
+    // write SecureEndRecord + Ed25519 sign) after disarm.
+    AP::logger().request_secure_stop();
+#endif
 #endif
 
     hal.util->set_soft_armed(false);

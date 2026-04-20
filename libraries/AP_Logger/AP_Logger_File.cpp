@@ -21,6 +21,7 @@
 #include "AP_Logger_File.h"
 
 #include <AP_Common/AP_Common.h>
+#include <AP_Common/AP_FWVersion.h>
 #include <AP_InternalError/AP_InternalError.h>
 #include <AP_RTC/AP_RTC.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
@@ -40,6 +41,121 @@ extern const AP_HAL::HAL& hal;
 
 // time between tries to open log
 #define LOGGER_FILE_REOPEN_MS 5000
+
+// ============================================================
+// SECURE LOGGING IMPLEMENTATION
+// Blake2b-256 hash chain + Ed25519 signature via Monocypher.
+// ============================================================
+#if HAL_SECURE_LOGGING_ENABLED
+
+void AP_Logger_File::_sec_write_header(uint16_t log_num)
+{
+    _sec_active = false;
+
+    SecureLogHeader hdr {};
+    hdr.magic     = 0xA5;
+    hdr.version   = 1;
+    hdr.algorithm = 2;
+    hdr.status    = 0;
+
+    {
+        uint8_t sysid[12] {};
+        uint8_t sysid_len = sizeof(sysid);
+        hal.util->get_system_id_unformatted(sysid, sysid_len);
+        hdr.device_id = (uint16_t)((sysid[0] << 8) | sysid[1]);
+    }
+    {
+        const AP_FWVersion &fw = AP::fwversion();
+        hdr.firmware_ver = (uint16_t)((fw.major << 8) | fw.minor);
+    }
+    hdr.timestamp_utc = 0;
+#if AP_RTC_ENABLED
+    {
+        uint64_t utc_usec;
+        if (AP::rtc().get_utc_usec(utc_usec)) {
+            hdr.timestamp_utc = (uint32_t)(utc_usec / 1000000ULL);
+        }
+    }
+#endif
+    hdr.log_counter = log_num;
+
+    // H0 = Blake2b-256(first 16 header bytes)
+    crypto_blake2b_general(_sec_prev_hash, 32, nullptr, 0,
+                           (const uint8_t *)&hdr, 16);
+    memcpy(hdr.H0, _sec_prev_hash, 32);
+
+    ssize_t nw = AP::FS().write(_write_fd, &hdr, sizeof(hdr));
+    if (nw != (ssize_t)sizeof(hdr)) {
+        DEV_PRINTF("SECURE LOG: header write failed (%d)\n", (int)nw);
+        return;
+    }
+    _write_offset   += sizeof(hdr);
+    _sec_chunk_start = _write_offset;
+    _sec_active      = true;
+    DEV_PRINTF("SECURE: header written\n");
+}
+
+void AP_Logger_File::_sec_append_chunk_record(const uint8_t *data, uint32_t len)
+{
+    if (!_sec_active || _write_fd == -1) {
+        return;
+    }
+    // Hi = Blake2b-256(chunk || H(i-1))
+    uint8_t new_hash[32];
+    crypto_blake2b_ctx ctx;
+    crypto_blake2b_general_init(&ctx, 32, nullptr, 0);
+    crypto_blake2b_update(&ctx, data, len);
+    crypto_blake2b_update(&ctx, _sec_prev_hash, 32);
+    crypto_blake2b_final(&ctx, new_hash);
+
+    SecureChunkRecord rec;
+    rec.magic  = 0x48434831UL;
+    rec.offset = _sec_chunk_start;
+    rec.length = len;
+    memcpy(rec.hash, new_hash, 32);
+
+    ssize_t nw = AP::FS().write(_write_fd, &rec, sizeof(rec));
+    if (nw == (ssize_t)sizeof(rec)) {
+        _write_offset   += sizeof(rec);
+        memcpy(_sec_prev_hash, new_hash, 32);
+        _sec_chunk_start = _write_offset;
+    } else {
+        DEV_PRINTF("SECURE LOG: chunk record write failed (%d)\n", (int)nw);
+    }
+}
+
+void AP_Logger_File::_sec_write_end_record(int fd)
+{
+    DEV_PRINTF("SECURE: writing end record\n");
+    if (!_sec_active || fd == -1) {
+        return;
+    }
+    SecureEndRecord rec {};
+    rec.magic = 0x534C4F47UL;
+    memcpy(rec.final_hash, _sec_prev_hash, 32);
+
+    // Ed25519 sign — single call, fixed 64-byte output, ~200B stack
+    uint8_t signature[64];
+    crypto_sign(signature, SECURE_LOG_PRIVATE_KEY, nullptr,
+                _sec_prev_hash, 32);
+    rec.sig_len = 64;
+    memcpy(rec.signature, signature, 64);
+
+    ssize_t nw = AP::FS().write(fd, &rec, sizeof(rec));
+    if (nw != (ssize_t)sizeof(rec)) {
+        DEV_PRINTF("SECURE LOG: end record write failed (%d)\n", (int)nw);
+    } else {
+        DEV_PRINTF("SECURE: end record written OK\n");
+    }
+    AP::FS().fsync(fd);
+    _sec_active = false;
+}
+
+#endif  // HAL_SECURE_LOGGING_ENABLED
+// ============================================================
+// END SECURE LOGGING IMPLEMENTATION
+// ============================================================
+
 
 /*
   constructor
@@ -713,6 +829,9 @@ void AP_Logger_File::stop_logging(void)
     if (_write_fd != -1) {
         int fd = _write_fd;
         _write_fd = -1;
+#if HAL_SECURE_LOGGING_ENABLED
+        _sec_write_end_record(fd);
+#endif
         AP::FS().close(fd);
     }
     if (have_sem) {
@@ -843,6 +962,13 @@ void AP_Logger_File::start_new_log(void)
     _open_error_ms = 0;
     _write_offset = 0;
     _writebuf.clear();
+
+#if HAL_SECURE_LOGGING_ENABLED
+    _sec_stop_pending = false;
+    _sec_active       = false;
+    _sec_write_header(log_num);
+#endif
+
     write_fd_semaphore.give();
 
     // now update lastlog.txt with the new log number
@@ -933,6 +1059,12 @@ void AP_Logger_File::io_timer(void)
 
     uint32_t nbytes = _writebuf.available();
     if (nbytes == 0) {
+#if HAL_SECURE_LOGGING_ENABLED
+        if (_sec_stop_pending) {
+            _sec_stop_pending = false;
+            stop_logging();
+        }
+#endif
         return;
     }
     if (nbytes < _writebuf_chunk && 
@@ -998,6 +1130,9 @@ void AP_Logger_File::io_timer(void)
         _last_write_failed = false;
         _last_write_ms = tnow;
         _write_offset += nwritten;
+#if HAL_SECURE_LOGGING_ENABLED
+        _sec_append_chunk_record(head, (uint32_t)nwritten);
+#endif
         _writebuf.advance(nwritten);
         /*
           the best strategy for minimizing corruption on microSD cards
@@ -1102,4 +1237,3 @@ void AP_Logger_File::erase_next(void)
 }
 
 #endif // HAL_LOGGING_FILESYSTEM_ENABLED
-

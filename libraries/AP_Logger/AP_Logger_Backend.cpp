@@ -665,6 +665,12 @@ void AP_Logger_Backend::vehicle_was_disarmed()
         // the trick:
         _rotate_pending = true;
     }
+#if HAL_SECURE_LOGGING_ENABLED
+    // Signal the file backend to drain its buffer and write the
+    // SecureEndRecord + Ed25519 signature after disarm.
+    // Runs safely in io_timer() context — no semaphore contention here.
+    request_secure_stop();
+#endif
 }
 
 // this sensor is enabled if we should be logging at the moment
