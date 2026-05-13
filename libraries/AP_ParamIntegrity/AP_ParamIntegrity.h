@@ -1,42 +1,73 @@
 /*
  * AP_ParamIntegrity.h — Runtime parameter integrity verification
  *
- * Verifies that a whitelisted set of critical parameters matches a SHA-256
- * reference checksum generated at build time by the offline tool
- *   Tools/scripts/param_checksum_gen.py
+ * Verifies that a whitelisted set of critical parameters matches the
+ * param_sha256 stored in the Sector 1 metadata block at 0x08020000.
  *
- * ── Canonical serialisation format ──────────────────────────────────────────
+ * ── Why Sector 1, not a compiled-in array ────────────────────────────────────
  *
- *   One entry per line, entries sorted in ASCII-ascending (strcmp) order:
+ *   Storing the reference checksum as a compiled constant requires a
+ *   generated .cpp file and complex wscript build machinery that proved
+ *   unreliable across SITL and hardware targets.
+ *
+ *   Instead, metadata_gen.py writes a 92-byte metadata.bin that is
+ *   programmed into a dedicated flash sector.  The firmware reads
+ *   param_sha256 directly from that sector at arming time.  No generated
+ *   files, no build-system changes beyond the two source files here.
+ *
+ * ── Flash layout (CUAV-X7 / STM32H7) ────────────────────────────────────────
+ *
+ *   0x08000000  Sector 0  128 KB  Bootloader
+ *   0x08020000  Sector 1  128 KB  Metadata   ← programmed by metadata_gen.py
+ *   0x08040000  Sector 2+         Firmware
+ *
+ * ── Metadata sector layout (92 bytes, little-endian) ─────────────────────────
+ *
+ *   Offset  Size  Field
+ *        0     4  magic          0xDEADBEEF
+ *        4     4  fw_size
+ *        8     4  fw_start_addr
+ *       12    32  fw_sha256
+ *       44    32  param_sha256   ← read by check()
+ *       76     4  version
+ *       80     4  flags
+ *       84     4  build_ts
+ *       88     4  meta_crc32     CRC-32 of bytes 0–87
+ *
+ * ── Canonical serialisation format ───────────────────────────────────────────
+ *
+ *   Entries sorted ASCII-ascending (strcmp), one per line ending with \n:
  *
  *     NAME=VALUE\n
  *
- *   VALUE formatting rules (must match param_checksum_gen.py exactly):
- *     AP_PARAM_INT8 / INT16 / INT32  →  decimal integer,  e.g.  FENCE_ENABLE=1
- *     AP_PARAM_FLOAT, no fraction    →  decimal integer,  e.g.  FS_THR_ENABLE=1
- *     AP_PARAM_FLOAT, has fraction   →  %.6f (6 d.p.),   e.g.  SOME_GAIN=0.135000
+ *   VALUE formatting (must match metadata_gen.py exactly):
+ *     INT8/16/32 or float with |frac| < 1e-6  →  decimal integer  "1"
+ *     float with |frac| >= 1e-6               →  "%.6f"           "0.135000"
  *
- *   Line endings are always \n (0x0A).  No trailing newline after the last
- *   entry.  No blank lines.  No comments.  Strictly no BOM.
+ * ── Deployment workflow ───────────────────────────────────────────────────────
  *
- * ── Workflow ─────────────────────────────────────────────────────────────────
+ *   1.  Edit _whitelist[] in AP_ParamIntegrity.cpp (keep ASCII-sorted).
  *
- *   1.  Edit _whitelist[] in AP_ParamIntegrity.cpp.  Keep it ASCII-sorted.
- *   2.  python3 Tools/scripts/param_checksum_gen.py  params/critical.param
- *   3.  Paste the printed 32-byte array into _reference_checksum[].
- *   4.  Rebuild and deploy.
+ *   2.  Generate metadata.bin:
+ *         python3 Tools/scripts/metadata_gen.py generate \
+ *             --firmware  build/CUAV-X7/bin/arducopter.bin \
+ *             --params    vehicle.params \
+ *             --whitelist libraries/AP_ParamIntegrity/params/whitelist.txt \
+ *             --output    metadata.bin
  *
- * ── Security scope ───────────────────────────────────────────────────────────
+ *   3.  Flash metadata.bin to Sector 1:
+ *         STM32_Programmer_CLI -c port=SWD \
+ *             -d metadata.bin 0x08020000 --verify
  *
- *   Detects:  accidental storage corruption, GCS-driven config drift,
- *             unintended changes during integration.
- *   Does NOT prevent: an attacker with full firmware-flash access, or
- *             changes to parameters outside the whitelist.
+ *   4.  Flash firmware as usual and power-cycle.
  *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the Free
- * Software Foundation; either version 3 of the License, or (at your option)
- * any later version.
+ *   SITL: place metadata.bin in the working directory where the SITL
+ *         binary is launched.  check() reads it via file I/O automatically.
+ *
+ * ── Security scope ────────────────────────────────────────────────────────────
+ *
+ *   Detects:  accidental parameter corruption, GCS-driven config drift.
+ *   Does NOT prevent: an attacker with full flash-write access.
  */
 
 #pragma once
@@ -52,116 +83,77 @@ public:
     /*
      * check()
      *
-     * Reads every whitelisted parameter from the live AP_Param store,
-     * serialises each one into the canonical format, feeds the result
-     * through SHA-256, then compares the digest against the hardcoded
-     * reference checksum.
+     * 1.  Reads every whitelisted parameter from the live AP_Param store and
+     *     computes the SHA-256 of the canonical serialisation.
+     * 2.  Reads the 92-byte metadata block from Sector 1 (hardware) or
+     *     metadata.bin (SITL).
+     * 3.  Validates the block magic and CRC-32.
+     * 4.  Compares the live digest against param_sha256 at offset 44.
      *
-     * Returns true   — all entries found; digest matches reference.
-     * Returns false  — a parameter is absent, or the digest mismatches.
-     *
-     * When display_failure == true, a GCS MAVLink CRITICAL text is emitted
-     * identifying the specific sub-failure (missing param / format error).
-     * The top-level "Param checksum mismatch" message is left to the caller
-     * (AP_Arming_Copter::parameter_checks) so the arming framework controls
-     * rate-limiting and severity.
+     * Returns true only when all parameters are found and the digests match.
+     * display_failure == true causes specific GCS CRITICAL messages.
      */
     bool check(bool display_failure) const;
 
 private:
-    // ── SHA-256 (self-contained FIPS-180-4) ──────────────────────────────────
+    // ── Metadata sector ───────────────────────────────────────────────────────
+    static constexpr uint32_t METADATA_SECTOR_ADDR = 0x08020000;
+    static constexpr uint32_t METADATA_MAGIC       = 0xDEADBEEF;
+    static constexpr uint32_t METADATA_BODY_SIZE   = 88;  // bytes 0-87 (CRC covers these)
+    static constexpr uint32_t METADATA_TOTAL_SIZE  = 92;
+    static constexpr uint32_t PARAM_SHA256_OFFSET  = 52;   // offset 52: after magic+fw_size+fw_sha256+version+flags+fw_start_addr
+    static constexpr uint32_t META_CRC32_OFFSET    = 88;
 
+    // ── SHA-256 (self-contained FIPS 180-4) ───────────────────────────────────
     static constexpr uint8_t SHA256_DIGEST_SIZE = 32;
     static constexpr uint8_t SHA256_BLOCK_SIZE  = 64;
 
-    /*
-     * Internal SHA-256 state.  Instantiated on the stack inside check(); the
-     * total stack cost is ~105 bytes for this struct plus ~256 bytes for the
-     * message-schedule array w[64] inside sha256_transform — well within the
-     * main-thread budget on any supported ArduPilot target.
-     */
     struct SHA256_CTX {
-        uint32_t state[8];               // running hash state (H0…H7)
-        uint64_t bit_count;              // total bits fed so far
-        uint8_t  buf[SHA256_BLOCK_SIZE]; // partial block accumulator
-        uint8_t  buf_len;                // bytes currently in buf
+        uint32_t state[8];
+        uint64_t bit_count;
+        uint8_t  buf[SHA256_BLOCK_SIZE];
+        uint8_t  buf_len;
     };
 
-    /*
-     * Initialise ctx with the SHA-256 initial hash values (FIPS-180-4 §5.3.3).
-     */
-    static void sha256_init(SHA256_CTX &ctx);
-
-    /*
-     * Feed len bytes of data into the running hash.
-     * May be called multiple times between init and final.
-     */
-    static void sha256_update(SHA256_CTX &ctx, const uint8_t *data, size_t len);
-
-    /*
-     * Apply padding and length, perform the final transform, and write the
-     * 32-byte digest into digest[].  ctx must not be reused after this call.
-     */
-    static void sha256_final(SHA256_CTX &ctx,
-                             uint8_t digest[SHA256_DIGEST_SIZE]);
-
-    /*
-     * Core SHA-256 compression function.  Processes exactly one 64-byte block.
-     * Called internally by sha256_update and sha256_final.
-     */
-    static void sha256_transform(SHA256_CTX &ctx,
-                                 const uint8_t block[SHA256_BLOCK_SIZE]);
+    static void sha256_init     (SHA256_CTX &ctx);
+    static void sha256_update   (SHA256_CTX &ctx, const uint8_t *data, size_t len);
+    static void sha256_final    (SHA256_CTX &ctx, uint8_t digest[SHA256_DIGEST_SIZE]);
+    static void sha256_transform(SHA256_CTX &ctx, const uint8_t block[SHA256_BLOCK_SIZE]);
 
     // ── Canonical serialisation ───────────────────────────────────────────────
+    static int format_entry(const char  *name,
+                            AP_Param    *param,
+                            ap_var_type  type,
+                            char        *out_buf,
+                            size_t       buf_size);
+
+    // ── Metadata helpers ──────────────────────────────────────────────────────
 
     /*
-     * format_entry()
-     *
-     * Writes one canonical entry for parameter `name` (whose live AP_Param
-     * pointer and type are supplied) into out_buf as:
-     *
-     *   NAME=VALUE\n
-     *
-     * Formatting follows the rules documented in the file header.
-     *
-     * Returns: number of bytes written (> 0), excluding the NUL terminator.
-     *          -1 on buffer overflow, snprintf error, or unsupported type.
-     *
-     * out_buf must be at least 48 bytes (16-char name + '=' + 20-char value
-     * + '\n' + NUL, with margin).
+     * read_metadata_block()
+     *   Hardware: memcpy from METADATA_SECTOR_ADDR (memory-mapped flash).
+     *   SITL:     fread from "metadata.bin" in the working directory.
+     * Returns true on success.
      */
-    static int format_entry(const char *name,
-                            AP_Param   *param,
-                            ap_var_type type,
-                            char       *out_buf,
-                            size_t      buf_size);
-
-    // ── Whitelist & reference checksum ───────────────────────────────────────
+    static bool read_metadata_block(uint8_t buf[METADATA_TOTAL_SIZE],
+                                    bool    display_failure);
 
     /*
-     * _whitelist[]
-     *
-     * Parameter names to include in the integrity check.
-     * MUST be in strict ASCII-ascending (strcmp) order — this is the same
-     * sort order used by the offline Python generator.
-     *
-     * Change this list in AP_ParamIntegrity.cpp, then regenerate
-     * _reference_checksum with param_checksum_gen.py.
+     * validate_metadata_block()
+     *   Verifies magic == 0xDEADBEEF and CRC-32 of bytes 0–87.
+     * Returns true if valid.
      */
+    static bool validate_metadata_block(const uint8_t buf[METADATA_TOTAL_SIZE],
+                                        bool          display_failure);
+
+    /*
+     * crc32_compute()
+     *   ISO 3309 / Ethernet CRC-32 (polynomial 0xEDB88320).
+     *   Must match Python binascii.crc32() used by metadata_gen.py.
+     */
+    static uint32_t crc32_compute(const uint8_t *data, size_t len);
+
+    // ── Whitelist ─────────────────────────────────────────────────────────────
     static const char * const _whitelist[];
     static const uint16_t     _whitelist_count;
-
-    /*
-     * _reference_checksum[]
-     *
-     * SHA-256 of the canonical serialisation of _whitelist[] at the
-     * expected parameter values, as printed by param_checksum_gen.py.
-     *
-     * *** PLACEHOLDER (all-zero) — must be replaced before deployment ***
-     *
-     * A firmware built with the placeholder checksum will always fail
-     * arming if ARMING_CHECK includes parameters (the intended behaviour
-     * during development before the real checksum is embedded).
-     */
-    static const uint8_t _reference_checksum[SHA256_DIGEST_SIZE];
 };
