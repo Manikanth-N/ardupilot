@@ -40,6 +40,7 @@ def build(bld):
                      'AP_CANManager',
                      'AP_KDECAN',
                      'AP_Param',
+                     'AP_ParamIntegrity',
                      'StorageManager',
                      'AP_FlashStorage',
                      'AP_RAMTRON',

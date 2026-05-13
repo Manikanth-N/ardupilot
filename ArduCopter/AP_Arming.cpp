@@ -195,6 +195,12 @@ bool AP_Arming_Copter::parameter_checks(bool display_failure)
     // check various parameter values
     if (check_enabled(ARMING_CHECK_PARAMETERS)) {
 
+        // Parameter Checksum Verification 
+        if (!copter.param_integrity.check(display_failure)) {
+            check_failed(ARMING_CHECK_PARAMETERS, display_failure,"Param checksum mismatch");
+            return false;
+        }
+
         // failsafe parameter checks
         if (copter.g.failsafe_throttle) {
             // check throttle min is above throttle failsafe trigger and that the trigger is above ppm encoder's loss-of-signal value of 900

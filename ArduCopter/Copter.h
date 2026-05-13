@@ -32,6 +32,7 @@
 #include <AP_Common/Location.h>             // Library having the implementation of location class         
 #include <AP_Param/AP_Param.h>              // A system for managing and storing variables that are of general interest to the system.
 #include <StorageManager/StorageManager.h>  // library for Management for hal.storage to allow for backwards compatible mapping of storage offsets to available storage
+#include <AP_ParamIntegrity/AP_ParamIntegrity.h>  // library for checking integrity of parameters
 
 // Application dependencies
 #include <AP_Logger/AP_Logger.h>            // ArduPilot Mega Flash Memory Library
@@ -565,6 +566,7 @@ private:
     // Top-level logic
     // setup the var_info table
     AP_Param param_loader;
+    AP_ParamIntegrity param_integrity;
 
 #if FRAME_CONFIG == HELI_FRAME
     // Mode filter to reject RC Input glitches.  Filter size is 5, and it draws the 4th element, so it can reject 3 low glitches,
