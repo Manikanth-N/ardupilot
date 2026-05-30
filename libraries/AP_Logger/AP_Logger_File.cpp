@@ -93,6 +93,7 @@ void AP_Logger_File::_sec_write_header(uint16_t log_num)
     _sec_chunk_start = _write_offset;
     _sec_active      = true;
     DEV_PRINTF("SECURE: header written\n");
+    gcs().send_text(MAV_SEVERITY_INFO, "SECURE LOG: Recording started");
 }
 
 void AP_Logger_File::_sec_append_chunk_record(const uint8_t *data, uint32_t len)
@@ -127,6 +128,7 @@ void AP_Logger_File::_sec_append_chunk_record(const uint8_t *data, uint32_t len)
 void AP_Logger_File::_sec_write_end_record(int fd)
 {
     DEV_PRINTF("SECURE: writing end record\n");
+    gcs().send_text(MAV_SEVERITY_INFO, "SECURE LOG: Recording stopped");
     if (!_sec_active || fd == -1) {
         return;
     }

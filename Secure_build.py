@@ -26,6 +26,8 @@ Binary artefacts written to --out-dir
   <BOARD>_bl.bin               Secure bootloader binary
   <vehicle>.apj                Signed firmware image
   metadata.bin                 92-byte metadata blob (fw+param hashes + CRC-32)
+  locked_params.txt            Whitelisted params + values (human-readable table)
+  locked_params.csv            Whitelisted params + values (CSV)
   secure_build_manifest.txt    Human-readable build report
 
 Usage
@@ -288,10 +290,7 @@ def step_firmware(board: str,
     """
     Configure waf for signed firmware and build.
 
-    The private key is embedded at configure time so signing happens
-    automatically on every build (no separate make_secure_fw.py call needed).
-
-    Returns path to the signed .apj inside out_dir.
+    Returns path to the signed .bin inside out_dir (metadata_gen works on .bin).
     """
     root = ardupilot_root()
     waf  = root / "waf"
@@ -312,13 +311,9 @@ def step_firmware(board: str,
         cwd=root,
     )
 
-    # The signed apj lives in build/<BOARD>/bin/ardu<vehicle>.apj
-    # (waf vehicle name may be 'copter' → 'arducopter.apj')
     apj_stem = f"ardu{vehicle}" if not vehicle.startswith("ardu") else vehicle
     src_apj  = root / "build" / board / "bin" / f"{apj_stem}.apj"
     dst_apj  = out_dir / f"{apj_stem}.apj"
-
-    # Also grab the raw .bin for metadata hashing
     src_bin  = root / "build" / board / "bin" / f"{apj_stem}.bin"
     dst_bin  = out_dir / f"{apj_stem}.bin"
 
@@ -336,7 +331,7 @@ def step_firmware(board: str,
     else:
         log.ok(f"(dry-run) Signed firmware would be → {dst_apj}")
 
-    return dst_bin   # metadata_gen works on the .bin, not .apj
+    return dst_bin
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -469,6 +464,90 @@ def step_metadata(fw_bin: Path,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Step 4b — Locked-parameter export
+# ──────────────────────────────────────────────────────────────────────────────
+
+def export_locked_params(params_file: Path,
+                         whitelist_file: Path,
+                         out_dir: Path,
+                         *,
+                         dry_run: bool) -> tuple[Path, Path]:
+    """
+    Write two files into out_dir listing every whitelisted parameter and the
+    value that was canonicalised and hashed into metadata.bin:
+
+      locked_params.txt   — aligned text table  (human-readable / diff-friendly)
+      locked_params.csv   — comma-separated      (spreadsheet / tooling import)
+
+    These files mirror exactly what went into the SHA-256 param hash so you can
+    audit which values are locked without decoding the binary metadata blob.
+
+    Returns (txt_path, csv_path).
+    """
+    txt_out = out_dir / "locked_params.txt"
+    csv_out = out_dir / "locked_params.csv"
+
+    if dry_run:
+        log.ok(f"(dry-run) Locked-param export would be → {txt_out} / {csv_out}")
+        return txt_out, csv_out
+
+    params    = _parse_params(params_file)
+    whitelist = _load_whitelist(whitelist_file)   # sorted alphabetically
+
+    # Build rows: (NAME, raw_value, canonical_value)
+    rows: list[tuple[str, str, str]] = []
+    missing: list[str] = []
+    for name in whitelist:
+        if name not in params:
+            missing.append(name)
+            continue
+        raw   = params[name]
+        canon = _canonicalize_value(raw)
+        rows.append((name, raw, canon))
+
+    if missing:
+        log.warn(
+            f"Whitelisted params missing from .params file (skipped in export): {missing}"
+        )
+
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    # ── .txt — padded table ───────────────────────────────────────────────────
+    col_name  = max((len(r[0]) for r in rows), default=9)
+    col_raw   = max((len(r[1]) for r in rows), default=9)
+    col_canon = max((len(r[2]) for r in rows), default=18)
+
+    sep = f"# {'-' * col_name}  {'-' * col_raw}  {'-' * col_canon}"
+    header_txt = "\n".join([
+        "# ArduPilot Secure Build — Locked Parameters",
+        f"# Generated : {now}",
+        f"# Source    : {params_file}",
+        f"# Whitelist : {whitelist_file}",
+        f"# Count     : {len(rows)}",
+        "#",
+        f"# {'PARAMETER':<{col_name}}  {'RAW VALUE':<{col_raw}}  CANONICAL (hashed into metadata)",
+        sep,
+    ]) + "\n"
+
+    body_lines = [
+        f"  {name:<{col_name}}  {raw:<{col_raw}}  {canon}"
+        for name, raw, canon in rows
+    ]
+    txt_out.write_text(header_txt + "\n".join(body_lines) + "\n", encoding="utf-8")
+
+    # ── .csv ──────────────────────────────────────────────────────────────────
+    csv_lines = [
+        f"# ArduPilot Secure Build — Locked Parameters — Generated: {now}",
+        "parameter,raw_value,canonical_value",
+    ] + [f"{name},{raw},{canon}" for name, raw, canon in rows]
+    csv_out.write_text("\n".join(csv_lines) + "\n", encoding="utf-8")
+
+    log.ok(f"Locked params    → {txt_out}  ({len(rows)} params)")
+    log.ok(f"Locked params    → {csv_out}  (CSV)")
+    return txt_out, csv_out
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Step 5 — Metadata verification
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -540,11 +619,11 @@ def step_verify(meta_path: Path,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Step 6 — Optional upload
+# Step 6 (optional) — Board upload
 # ──────────────────────────────────────────────────────────────────────────────
 
 def step_upload(vehicle: str, out_dir: Path, root: Path, *, dry_run: bool):
-    waf     = root / "waf"
+    waf = root / "waf"
     run(
         [sys.executable, str(waf), vehicle, "--upload"],
         dry_run=dry_run,
@@ -580,12 +659,17 @@ def write_manifest(args, out_dir: Path, priv_key: Path, pub_key: Path,
         "ARTEFACTS",
     ]
 
+    txt_locked = out_dir / "locked_params.txt"
+    csv_locked = out_dir / "locked_params.csv"
+
     for label, path in [
         ("Private key (SECRET)", priv_key),
         ("Public key",           pub_key),
         ("Secure bootloader",    bl_bin),
         ("Signed firmware",      fw_bin),
         ("Metadata blob",        meta_bin),
+        ("Locked params (text)", txt_locked),
+        ("Locked params (CSV)",  csv_locked),
     ]:
         size = f"  ({path.stat().st_size:,} bytes)" if path.exists() else ""
         lines.append(f"  {label:<28} {path}{size}")
@@ -608,6 +692,7 @@ def write_manifest(args, out_dir: Path, priv_key: Path, pub_key: Path,
         "  2. Load signed firmware via MissionPlanner > Load Custom Firmware.",
         "  3. Flash metadata.bin to 0x08020000 via the update tool.",
         "  4. Verify logs with the log-verify tool using the matching public key.",
+        "  5. Review locked_params.txt to confirm all whitelisted values are correct.",
         "=" * 70,
     ]
 
@@ -737,6 +822,16 @@ def main() -> int:
         log.fail(str(exc))
         return 1
 
+    # ── Step 4b — Export locked params ───────────────────────────────────────
+    try:
+        export_locked_params(
+            args.params, args.whitelist, out_dir,
+            dry_run=args.dry_run,
+        )
+    except Exception as exc:
+        # Non-fatal: the build itself is valid; just warn.
+        log.warn(f"Locked-param export failed (non-fatal): {exc}")
+
     # ── Step 5 ───────────────────────────────────────────────────────────────
     log.step(5, TOTAL, "Metadata Verification")
     try:
@@ -787,6 +882,10 @@ def main() -> int:
         1. Secure bootloader → 0x08000000  ({bl_bin.name})
         2. Metadata          → 0x08020000  ({meta_bin.name})
         3. Signed firmware   → 0x{args.fw_addr:08X}  ({fw_bin.with_suffix('.apj').name})
+
+      Locked params audit
+        locked_params.txt   — human-readable table
+        locked_params.csv   — spreadsheet import
     """))
 
     return 0
