@@ -260,7 +260,7 @@ def step_bootloader(board: str,
     run(cmd, dry_run=dry_run, cwd=root)
 
     # build_bootloaders.py writes to Tools/bootloaders/<BOARD>_bl.bin
-    src_bl = root / "Tools" / "bootloaders" / f"{board}_bl.bin"
+    src_bl = root / "build" / board / "bin" / "AP_Bootloader.bin"
     dst_bl = out_dir / f"{board}_bl.bin"
 
     if not dry_run:
