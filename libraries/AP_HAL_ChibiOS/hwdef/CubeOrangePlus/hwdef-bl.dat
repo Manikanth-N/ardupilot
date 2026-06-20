@@ -7,6 +7,9 @@ define SMPS_PWR
 
 include ../CubeOrange/hwdef-bl.inc
 
+# Bootloader hands off to app at 0x08040000 (matches FW_START / metadata at 0x08020000)
+FLASH_BOOTLOADER_LOAD_KB 256
+
 undef USB_STRING_PRODUCT
 undef USB_STRING_MANUFACTURER
 undef APJ_BOARD_ID

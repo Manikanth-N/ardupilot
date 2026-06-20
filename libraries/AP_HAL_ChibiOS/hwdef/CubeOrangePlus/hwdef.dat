@@ -8,6 +8,10 @@ define SMPS_PWR
 
 include ../CubeOrange/hwdef.inc
 
+# Secure layout: reserve sector 0 (bootloader) + sector 1 (metadata),
+# firmware links at 0x08040000 to match securing_firmware.h FW_START
+FLASH_RESERVE_START_KB 256
+
 undef USB_STRING_PRODUCT
 undef USB_STRING_MANUFACTURER
 undef APJ_BOARD_ID
