@@ -25,6 +25,7 @@ static const uint8_t RAMTRON_WRITE = 0x02;
 const AP_RAMTRON::ramtron_id AP_RAMTRON::ramtron_ids[] = {
     { 0x21, 0x00,  16, 2, RDID_type::Cypress }, // FM25V01
     { 0x21, 0x08,  16, 2, RDID_type::Cypress }, // FM25V01A
+    { 0x21, 0xc8,  16, 2, RDID_type::Cypress }, // CY15B128Q (Infineon-Cypress, verified via RDID readback on TARA-X7 hardware)
     { 0x22, 0x00,  32, 2, RDID_type::Cypress }, // FM25V02
     { 0x22, 0x08,  32, 2, RDID_type::Cypress }, // FM25V02A
     { 0x22, 0x48,  32, 2, RDID_type::Cypress }, // FM25V02A - Extended Temperature Version
@@ -108,7 +109,8 @@ bool AP_RAMTRON::init(void)
     }
 
     if (id == UINT8_MAX) {
-        DEV_PRINTF("Unknown RAMTRON device\n");
+        DEV_PRINTF("Unknown RAMTRON device: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                   rdid[0], rdid[1], rdid[2], rdid[3], rdid[4], rdid[5], rdid[6], rdid[7], rdid[8]);
         return false;
     }
 
