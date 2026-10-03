@@ -333,12 +333,20 @@ extern "C" {
     int vsnprintf(char *str, size_t size, const char *fmt, va_list ap);
 }
 
+static bool uarts_initialised;
+
 // printf to USB for debugging
 void uprintf(const char *fmt, ...)
 {
 #ifdef BOOTLOADER_DEBUG
     va_list ap;
     char umsg[200];
+
+    if (!uarts_initialised) {
+        // SDU1 not yet constructed (fast-boot path jumps before init_uarts());
+        // its vmt is NULL so chnWriteTimeout() would HardFault
+        return;
+    }
 
     va_start(ap, fmt);
     uint32_t n = vsnprintf(umsg, sizeof(umsg), fmt, ap);
@@ -467,6 +475,7 @@ void init_uarts(void)
     thread_sleep_ms(1000);
     usbStart(serusbcfg1.usbp, &usbcfg);
     usbConnectBus(serusbcfg1.usbp);
+    uarts_initialised = true;
 #endif
 
 #if HAL_USE_SERIAL == TRUE

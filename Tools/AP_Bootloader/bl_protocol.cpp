@@ -252,10 +252,10 @@ secure_jump_to_app(void)
     uprintf("\nBootloader started...\n");
     uprintf("Waiting 3 seconds for terminal...\n");
 
-    for (int i = 3; i > 0; i--) {
-        uprintf("Starting in %d...\n", i);
-        thread_sleep_ms(1000);
-    }
+    // for (int i = 3; i > 0; i--) {
+    //     uprintf("Starting in %d...\n", i);
+    //     thread_sleep_ms(1000);
+    // }
 
     uprintf("\n=== SECURE BOOT START ===\n");
 
@@ -291,10 +291,10 @@ secure_jump_to_app(void)
     // 🚀 STEP 4: JUMP TO APPLICATION
     uprintf("➡️ Jumping to application...\n");
     
-    for (int i = 3; i > 0; i--) {
-        uprintf("Starting in %d...\n", i);
-        thread_sleep_ms(1000);
-    }
+    // for (int i = 3; i > 0; i--) {
+    //     uprintf("Starting in %d...\n", i);
+    //     thread_sleep_ms(1000);
+    // }
 
     thread_sleep_ms(100);   // allow logs to flush
 
